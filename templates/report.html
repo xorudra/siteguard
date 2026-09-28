@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteGuard report — {{ r.url }}</title>
+<style>
+  body{font-family:system-ui,sans-serif;max-width:640px;margin:0 auto;padding:24px 16px;color:#222}
+  .score{text-align:center;padding:24px;border-radius:12px;background:#f5f5f5;margin:16px 0}
+  .score .g{font-size:3em;font-weight:bold}
+  .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:12px 0}
+  .pill{display:inline-block;color:#fff;font-size:.8em;padding:3px 10px;border-radius:20px;margin-bottom:6px}
+  .card h3{margin:4px 0 8px;font-size:1.05em}
+  .card p{margin:6px 0;font-size:.95em}
+  .lbl{font-weight:bold}
+  a.btn{display:inline-block;margin-top:16px;padding:12px 20px;background:#1a73e8;color:#fff;border-radius:8px;text-decoration:none}
+  .meta{color:#777;font-size:.85em}
+</style>
+</head>
+<body>
+  <a href="/">← Scan another site</a>
+  <h1>Report for {{ r.url }}</h1>
+  <p class="meta">Scanned {{ r.scanned_at }}</p>
+  <div class="score">
+    <div class="g">{{ r.grade }}</div>
+    <div>Safety score: {{ r.score }} / 100</div>
+  </div>
+  {% if not r.findings %}
+    <p>🎉 Nothing to fix — your site passed every check.</p>
+  {% else %}
+    <p>We found <b>{{ r.findings|length }}</b> thing{{ 's' if r.findings|length != 1 }} to look at:</p>
+    {% for f in r.findings %}
+    <div class="card">
+      <span class="pill" style="background:{{ sev_color[f.severity] }}">{{ sev_label[f.severity] }}</span>
+      <h3>{{ f.title }}</h3>
+      <p><span class="lbl">What it means:</span> {{ f.what_it_means }}</p>
+      <p><span class="lbl">How to fix:</span> {{ f.how_to_fix }}</p>
+    </div>
+    {% endfor %}
+  {% endif %}
+  <a class="btn" href="/">Scan another site</a>
+</body>
+</html>
