@@ -100,6 +100,11 @@ def scan(raw_url):
     host = urlparse(url).hostname or url
     _check_url(f"https://{host}/")  # reject non-public targets up front
     findings = []
+    checks = []
+
+    def _record(name, status):
+        # status: "passed", "failed", "skipped" or "info"
+        checks.append({"name": name, "status": status})
 
     # 1. Does HTTPS work at all?
     https_ok = True
@@ -116,14 +121,17 @@ def scan(raw_url):
             "Turn on HTTPS in your hosting settings — most hosts offer "
             "a free certificate (Let's Encrypt) in one click."))
         base = None
+    _record("Secure connection (HTTPS)", "passed" if https_ok else "failed")
 
     # 2. Does plain http:// redirect to https:// ?
     if https_ok:
+        redir_ok = True
         try:
             r = _safe_get(f"http://{host}/", follow=False)
             loc = r.headers.get("Location", "")
             if not (r.status_code in (301, 302, 307, 308)
                     and loc.startswith("https://")):
+                redir_ok = False
                 findings.append(_finding(
                     "medium", "Insecure address still works",
                     "People who type your address without https://, or "
@@ -133,11 +141,18 @@ def scan(raw_url):
                     "hosting or Cloudflare settings."))
         except Exception:
             pass
+        _record("Insecure page redirects to secure version",
+                "passed" if redir_ok else "failed")
+    else:
+        _record("Insecure page redirects to secure version", "skipped")
 
     headers = {k.lower(): v for k, v in base.headers.items()} if base else {}
 
     # 3. HSTS — tells browsers to never use http again
-    if https_ok and "strict-transport-security" not in headers:
+    if not https_ok:
+        _record("Always-use-secure-connection rule (HSTS)", "skipped")
+    elif "strict-transport-security" not in headers:
+        _record("Always-use-secure-connection rule (HSTS)", "failed")
         findings.append(_finding(
             "medium", "Missing 'always use secure connection' rule",
             "Even with HTTPS on, a first-time visitor can still be tricked "
@@ -145,42 +160,56 @@ def scan(raw_url):
             "Ask your host to add the HSTS header, or enable it in "
             "Cloudflare (SSL/TLS -> Edge Certificates -> HTTP Strict "
             "Transport Security)."))
+    else:
+        _record("Always-use-secure-connection rule (HSTS)", "passed")
 
     # 4. Clickjacking protection
     if "x-frame-options" not in headers and "content-security-policy" not in headers:
+        _record("Clickjacking protection", "failed")
         findings.append(_finding(
             "low", "Your site can be embedded inside other sites",
             "Attackers can invisibly layer your site inside theirs and "
             "trick visitors into clicking things they didn't mean to.",
             "Ask your developer or host to add the header "
             "'X-Frame-Options: SAMEORIGIN'."))
+    else:
+        _record("Clickjacking protection", "passed")
 
     # 5. Content-Security-Policy
     if "content-security-policy" not in headers:
+        _record("Script-loading rules (CSP)", "failed")
         findings.append(_finding(
             "low", "No script-loading rules set",
             "Without these rules it's easier for attackers to sneak "
             "malicious scripts onto your pages.",
             "This one needs a developer — ask them to add a "
             "Content-Security-Policy header."))
+    else:
+        _record("Script-loading rules (CSP)", "passed")
 
     # 6. Server version exposed
     server = headers.get("server", "")
     if server and re.search(r"\d+\.\d+", server):
+        _record("Server software version hidden", "failed")
         findings.append(_finding(
             "low", f"Server software version is visible ({server})",
             "Your site tells everyone exactly which software version it "
             "runs. Attackers use this to look up known weaknesses.",
             "Ask your host to hide the version number (turn off "
             "'ServerTokens' / 'server signature')."))
+    else:
+        _record("Server software version hidden", "passed")
 
     # 7. X-Powered-By exposed
     if "x-powered-by" in headers:
+        _record("Technology name hidden (X-Powered-By)", "failed")
         findings.append(_finding(
             "low", f"Technology name is visible ({headers['x-powered-by']})",
             "Same idea as above — free clues for attackers about what "
             "to attack.",
             "Ask your host or developer to remove the X-Powered-By header."))
+    else:
+        _record("Technology name hidden (X-Powered-By)", "passed")
 
     # 8. Certificate expiry
     if https_ok:
@@ -193,60 +222,75 @@ def scan(raw_url):
             exp = exp.replace(tzinfo=timezone.utc)
             days = (exp - datetime.now(timezone.utc)).days
             if days < 0:
+                _record("Security certificate valid", "failed")
                 findings.append(_finding(
                     "high", "Security certificate has expired",
                     "Browsers show a scary warning page to every visitor. "
                     "Most people leave immediately.",
                     "Renew the certificate in your hosting panel right away."))
             elif days < 30:
+                _record("Security certificate valid", "failed")
                 findings.append(_finding(
                     "medium", f"Security certificate expires in {days} days",
                     "If it lapses, visitors will see a warning page and "
                     "leave.",
                     "Set your certificate to auto-renew, or renew it in "
                     "your hosting panel now."))
+            else:
+                _record("Security certificate valid", "passed")
         except Exception:
-            pass
+            _record("Security certificate valid", "skipped")
+    else:
+        _record("Security certificate valid", "skipped")
 
     # 9. Exposed .git folder — source code leak
     try:
         r = _get(f"https://{host}/.git/HEAD")
         if r.status_code == 200 and "ref:" in r.text:
+            _record("Private code folder (.git) not public", "failed")
             findings.append(_finding(
                 "high", "Your website's private code folder is public",
                 "Anyone can download your site's source code — including "
                 "passwords or keys a developer may have left inside.",
                 "Block public access to the .git folder on your server "
                 "immediately, and change any passwords/keys in the code."))
+        else:
+            _record("Private code folder (.git) not public", "passed")
     except Exception:
-        pass
+        _record("Private code folder (.git) not public", "skipped")
 
     # 10. Exposed .env file — secrets leak
     try:
         r = _get(f"https://{host}/.env")
         if r.status_code == 200 and ("APP_KEY" in r.text or "DB_" in r.text
                                      or "SECRET" in r.text):
+            _record("Secret keys file (.env) not public", "failed")
             findings.append(_finding(
                 "high", "A file with secret keys is public",
                 "Your .env file — which usually holds database passwords "
                 "and API keys — can be read by anyone.",
                 "Block public access to .env right away and change every "
                 "password and key listed inside it."))
+        else:
+            _record("Secret keys file (.env) not public", "passed")
     except Exception:
-        pass
+        _record("Secret keys file (.env) not public", "skipped")
 
     # 11. WordPress login reachable (informational)
     try:
         r = _safe_get(f"https://{host}/wp-login.php", follow=False)
         if r.status_code == 200:
+            _record("WordPress login page", "info")
             findings.append(_finding(
                 "info", "WordPress login page found",
                 "Not a problem by itself — just means attackers know "
                 "where to try passwords.",
                 "Use a strong admin password and turn on two-factor login "
                 "in WordPress."))
+        else:
+            _record("WordPress login page", "passed")
     except Exception:
-        pass
+        _record("WordPress login page", "skipped")
 
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
@@ -260,6 +304,7 @@ def scan(raw_url):
         "score": score,
         "grade": grade,
         "findings": findings,
+        "checks": checks,
     }
 
 
