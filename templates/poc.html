@@ -69,11 +69,32 @@
   .toolbar .back:hover{background:#dbe1e9}
   .disclaimer{margin:30px 0 0; font-size:.82em; color:var(--faint); line-height:1.65; border-top:1px solid var(--line); padding-top:20px}
   @media print{
-    body{background:#fff; padding:0}
+    /* Plain-text document: no dark UI, no invisible white-on-dark text. */
+    body{background:#fff; padding:0; color:#111}
     .toolbar{display:none}
+    .wrap{max-width:none}
     .sheet{box-shadow:none; border-radius:0}
-    .cover{border-radius:0}
-    .finding{break-inside:avoid}
+    .cover{background:#fff !important; color:#111; padding:0 0 14px; border-bottom:3px solid #111; border-radius:0}
+    .cover::after{display:none}
+    .cover > *{position:static}
+    .cover .kicker{color:#555; margin-bottom:8px}
+    .cover .kicker::after{background:#999}
+    .cover h1{color:#111}
+    .cover .grade{color:#111 !important; width:44px; height:44px; font-size:1.2em; border-width:3px}
+    .cover .score{color:#333}
+    .cover table{margin-top:12px}
+    .cover td{color:#555; padding:4px 16px 4px 0}
+    .cover td.v{color:#111}
+    .body{padding:0}
+    .finding{break-inside:avoid; border:1px solid #bbb; border-radius:0; box-shadow:none; padding:16px 18px}
+    .finding .fnum{color:#777}
+    .finding h3{color:#555}
+    .finding p,.finding li{color:#222}
+    .pill{background:none !important; color:#111 !important; border:1px solid #555}
+    .evidence{background:#fff !important; border:1px solid #999; color:#333}
+    .evidence b{color:#111}
+    code{background:#fff; border:1px solid #999; color:#111}
+    .disclaimer{color:#555}
   }
   @media(max-width:560px){.cover,.body{padding-left:24px; padding-right:24px}}
 </style>
