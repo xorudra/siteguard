@@ -32,9 +32,10 @@ Push this folder to GitHub, then New -> Web Service on render.com pointing
 at the repo. `render.yaml` sets the build/start commands automatically.
 
 ## How it works
-`scanner.py` runs 11 HTTP-level checks (HTTPS, HSTS, security headers,
+`scanner.py` runs 23 HTTP-level checks (HTTPS, HSTS, security headers,
 certificate expiry, exposed .git/.env, server version leaks, WordPress
-login). Each finding has a severity (high/medium/low/info) and a
+login, cookie flags, CORS, old TLS versions, TRACE method, technology
+headers, security.txt, robots.txt and more). Each finding has a severity (high/medium/low/info) and a
 simple explanation of what it means and how to fix it. Score starts at 100, deductions per severity.
 
 `app.py` is a small Flask app: form on `/`, report on `/scan`.

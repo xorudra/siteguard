@@ -292,6 +292,249 @@ def scan(raw_url):
     except Exception:
         _record("WordPress login page", "skipped")
 
+    # 12. nosniff — blocks browsers from guessing file types
+    try:
+        if headers.get('x-content-type-options', '').lower() != 'nosniff':
+            _record("File-type guessing blocked (nosniff)", "failed")
+            findings.append(_finding(
+                "low", "nosniff-missing", "Browser file-type guessing not blocked",
+                "Browsers may guess what your files are. Attackers abuse "
+                "this to disguise malicious scripts as harmless files.",
+                "Ask your host or developer to add the header "
+                "'X-Content-Type-Options: nosniff'."))
+        else:
+            _record("File-type guessing blocked (nosniff)", "passed")
+    except Exception:
+        _record("File-type guessing blocked (nosniff)", "skipped")
+
+    # 13. Referrer-Policy — controls what link clicks leak
+    try:
+        _rp = headers.get('referrer-policy', '').lower()
+        if not _rp or _rp == 'unsafe-url':
+            _record("Link-click data leak controlled (Referrer-Policy)", "failed")
+            findings.append(_finding(
+                "low", "referrer-policy-insecure", "Link clicks may leak private page addresses",
+                "When visitors click links on your site, the full address "
+                "of the page they came from can be sent along — sometimes "
+                "including private details in the address.",
+                "Ask your developer to add the header 'Referrer-Policy: "
+                "strict-origin-when-cross-origin'."))
+        else:
+            _record("Link-click data leak controlled (Referrer-Policy)", "passed")
+    except Exception:
+        _record("Link-click data leak controlled (Referrer-Policy)", "skipped")
+
+    # 14. Permissions-Policy — restricts browser features
+    try:
+        if 'permissions-policy' not in headers and 'feature-policy' not in headers:
+            _record("Browser feature restrictions (Permissions-Policy)", "info")
+            findings.append(_finding(
+                "info", "permissions-policy-missing", "Browser features not restricted",
+                "Your site doesn't say which browser features (camera, "
+                "microphone, location) pages may use. Mostly hardening, "
+                "not an emergency.",
+                "A developer can add a 'Permissions-Policy' header listing "
+                "only the features the site needs."))
+        else:
+            _record("Browser feature restrictions (Permissions-Policy)", "passed")
+    except Exception:
+        _record("Browser feature restrictions (Permissions-Policy)", "skipped")
+
+    # 15. Cookie flags — Secure / HttpOnly / SameSite
+    try:
+        if https_ok and base is not None:
+            _cookies = base.raw.headers.getlist('Set-Cookie')
+            _bad_cookie = False
+            for _c in _cookies:
+                _cl = _c.lower()
+                if 'secure' not in _cl or 'httponly' not in _cl or 'samesite' not in _cl:
+                    _bad_cookie = True
+                    break
+            if _bad_cookie:
+                _record("Login/session cookies locked down", "failed")
+                findings.append(_finding(
+                    "medium", "cookie-flags-missing", "Site cookies missing safety locks",
+                    "The cookies your site sets (used for logins and "
+                    "sessions) are missing safety locks, making them easier "
+                    "to steal on insecure networks or via scripts.",
+                    "Ask your developer to set Secure, HttpOnly and "
+                    "SameSite on all cookies."))
+            else:
+                _record("Login/session cookies locked down", "passed")
+        else:
+            _record("Login/session cookies locked down", "skipped")
+    except Exception:
+        _record("Login/session cookies locked down", "skipped")
+
+    # 16. CORS wildcard + credentials — dangerous combo
+    try:
+        if (headers.get('access-control-allow-origin') == '*'
+                and headers.get('access-control-allow-credentials') == 'true'):
+            _record("Cross-site data sharing locked down (CORS)", "failed")
+            findings.append(_finding(
+                "high", "cors-wildcard-credentials", "Any website can read your site's private data",
+                "Your site tells browsers that ANY other website may read "
+                "its responses, including logged-in user data. Attackers "
+                "can exploit this to steal information.",
+                "A developer must fix this urgently: never combine "
+                "'Access-Control-Allow-Origin: *' with "
+                "'Access-Control-Allow-Credentials: true'."))
+        else:
+            _record("Cross-site data sharing locked down (CORS)", "passed")
+    except Exception:
+        _record("Cross-site data sharing locked down (CORS)", "skipped")
+
+    # 17. Old TLS versions still accepted
+    try:
+        if https_ok:
+            _old_tls = False
+            _tls_tested = False
+            for _ver, _name in ((ssl.PROTOCOL_TLSv1, 'TLSv1'),
+                                (ssl.PROTOCOL_TLSv1_1, 'TLSv1.1')):
+                try:
+                    _ctx = ssl.SSLContext(_ver)
+                    _ctx.verify_mode = ssl.CERT_NONE
+                    with socket.create_connection((host, 443), timeout=TIMEOUT) as _s:
+                        with _ctx.wrap_socket(_s, server_hostname=host) as _ss:
+                            _tls_tested = True
+                            if _ss.version() in ('TLSv1', 'TLSv1.1'):
+                                _old_tls = True
+                                break
+                except ssl.SSLError:
+                    # The server actively rejected the old-protocol
+                    # handshake: a definitive "not accepted" answer.
+                    _tls_tested = True
+                    continue
+                except Exception:
+                    # Network-level failure (timeout, reset): inconclusive,
+                    # try the next version.
+                    continue
+            if _old_tls:
+                _record("Outdated encryption versions disabled", "failed")
+                findings.append(_finding(
+                    "medium", "tls-old-version", "Outdated encryption (TLS 1.0/1.1) still accepted",
+                    "Your server still talks the old, broken versions of "
+                    "encryption. Attackers can force connections down to "
+                    "these and snoop on traffic.",
+                    "Ask your host to disable TLS 1.0 and 1.1, keeping "
+                    "only TLS 1.2 and 1.3."))
+            elif _tls_tested:
+                _record("Outdated encryption versions disabled", "passed")
+            else:
+                # Neither legacy probe got a definitive answer
+                # (network errors, not rejections): don't claim "passed".
+                _record("Outdated encryption versions disabled", "skipped")
+        else:
+            _record("Outdated encryption versions disabled", "skipped")
+    except Exception:
+        _record("Outdated encryption versions disabled", "skipped")
+
+    # 18. security.txt — contact point for researchers
+    try:
+        _r = _get(f"https://{host}/.well-known/security.txt")
+        if _r.status_code == 404:
+            _record("Security contact file (security.txt)", "info")
+            findings.append(_finding(
+                "info", "security-txt-missing", "No security contact file",
+                "Not a vulnerability — but security researchers who find "
+                "a problem on your site have no clear way to tell you.",
+                "Add a small 'security.txt' file at "
+                "/.well-known/security.txt with a contact email."))
+        else:
+            _record("Security contact file (security.txt)", "passed")
+    except Exception:
+        _record("Security contact file (security.txt)", "skipped")
+
+    # 19. HTTP TRACE method enabled
+    try:
+        _check_url(f"https://{host}/")
+        _r = requests.request("TRACE", f"https://{host}/", headers=UA,
+                              timeout=TIMEOUT, allow_redirects=False)
+        if _r.status_code in (200, 204):
+            _record("Risky TRACE method disabled", "failed")
+            findings.append(_finding(
+                "low", "http-trace-enabled", "Risky TRACE method is enabled",
+                "Your server answers TRACE requests, an old debugging "
+                "method attackers can abuse to steal cookie data.",
+                "Ask your host to disable the TRACE method."))
+        else:
+            _record("Risky TRACE method disabled", "passed")
+    except Exception:
+        _record("Risky TRACE method disabled", "skipped")
+
+    # 20. Extra technology version headers
+    try:
+        _leaked = [h for h in ('x-aspnet-version', 'x-aspnetmvc-version', 'x-generator')
+                   if h in headers]
+        if _leaked:
+            _record("Extra technology names hidden", "failed")
+            findings.append(_finding(
+                "low", "tech-version-headers",
+                f"Technology details visible ({', '.join(_leaked)})",
+                "Your site's responses name the exact technology it runs "
+                "on — free clues for attackers picking what to attack.",
+                "Ask your developer or host to remove these headers."))
+        else:
+            _record("Extra technology names hidden", "passed")
+    except Exception:
+        _record("Extra technology names hidden", "skipped")
+
+    # 21. Cross-origin isolation policies
+    try:
+        if ('cross-origin-opener-policy' not in headers
+                and 'cross-origin-embedder-policy' not in headers):
+            _record("Cross-origin isolation (COOP/COEP)", "info")
+            findings.append(_finding(
+                "info", "cross-origin-policy-missing", "Cross-origin isolation not set",
+                "Hardening only — these headers keep other sites from "
+                "interacting with your pages in sneaky ways.",
+                "A developer can add 'Cross-Origin-Opener-Policy' and "
+                "'Cross-Origin-Embedder-Policy' headers."))
+        else:
+            _record("Cross-origin isolation (COOP/COEP)", "passed")
+    except Exception:
+        _record("Cross-origin isolation (COOP/COEP)", "skipped")
+
+    # 22. HSTS missing includeSubDomains
+    try:
+        if 'strict-transport-security' in headers:
+            if 'includesubdomains' not in headers['strict-transport-security'].lower():
+                _record("HSTS covers all subdomains", "failed")
+                findings.append(_finding(
+                    "low", "hsts-weak", "Secure-connection rule skips subdomains",
+                    "Your always-use-HTTPS rule doesn't cover subdomains "
+                    "(like blog.yoursite.com), leaving them open to the "
+                    "trick it protects against.",
+                    "Add 'includeSubDomains' to the HSTS header."))
+            else:
+                _record("HSTS covers all subdomains", "passed")
+        else:
+            _record("HSTS covers all subdomains", "skipped")
+    except Exception:
+        _record("HSTS covers all subdomains", "skipped")
+
+    # 23. robots.txt reveals sensitive paths
+    try:
+        _r = _safe_get(f"https://{host}/robots.txt", follow=False)
+        if _r.status_code == 200:
+            _sensitive = ['admin', 'backup', 'config', '.sql', '.bak', '.git', 'wp-admin']
+            _disallows = [l for l in _r.text.lower().splitlines()
+                          if l.strip().startswith('disallow:')]
+            if any(s in l for l in _disallows for s in _sensitive):
+                _record("robots.txt hides sensitive paths", "info")
+                findings.append(_finding(
+                    "info", "robots-disclosure", "robots.txt points at sensitive areas",
+                    "Your robots.txt lists private areas (admin pages, "
+                    "backups). Attackers read this file first to pick targets.",
+                    "Don't list sensitive paths in robots.txt — block them "
+                    "server-side instead."))
+            else:
+                _record("robots.txt hides sensitive paths", "passed")
+        else:
+            _record("robots.txt hides sensitive paths", "passed")
+    except Exception:
+        _record("robots.txt hides sensitive paths", "skipped")
+
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
              if score >= 70 else "D" if score >= 60 else "F")
