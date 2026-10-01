@@ -102,7 +102,7 @@
     <p>Get a detailed PoC report of these findings with your name on it — free, generated instantly, no AI involved.</p>
     {% if poc_error %}<div class="err">{{ poc_error }}</div>{% endif %}
     <form action="/poc" method="post">
-      <input type="hidden" name="token" value="{{ poc_token }}">
+      <input type="hidden" name="payload" value="{{ poc_payload }}">
       <input name="name" placeholder="Your name" maxlength="80" autocomplete="name">
       <button type="submit">Generate PoC</button>
     </form>

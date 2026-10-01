@@ -8,9 +8,12 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template, request
+from itsdangerous import BadSignature, URLSafeSerializer
 from scanner import scan, UnsafeTarget
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+_poc_signer = URLSafeSerializer(app.secret_key, salt="siteguard-poc")
 
 SEV_COLOR = {"high": "#d33", "medium": "#e80", "low": "#2a7", "info": "#68c"}
 SEV_LABEL = {"high": "Fix now", "medium": "Should fix",
@@ -18,18 +21,25 @@ SEV_LABEL = {"high": "Fix now", "medium": "Should fix",
 GRADE_COLOR = {"A": "#22a06b", "B": "#65a30d", "C": "#ca8a04",
                "D": "#ea580c", "F": "#dc2626"}
 
-# --- short-lived report store so /poc can rebuild a PoC without re-scanning ---
-REPORTS = {}
-REPORT_TTL = 3600
+# --- PoC payload: the scan report is signed into a hidden form field, so /poc
+# works no matter which gunicorn worker handles the POST (no shared memory).
+def _sign_report(report):
+    return _poc_signer.dumps(report)
 
 
-def _store_report(report):
-    token = secrets.token_urlsafe(16)
-    now = time.time()
-    for k in [k for k, (ts, _) in REPORTS.items() if now - ts > REPORT_TTL]:
-        del REPORTS[k]
-    REPORTS[token] = (now, report)
-    return token
+def _load_report(payload):
+    try:
+        report = _poc_signer.loads(payload)
+    except BadSignature:
+        return None
+    if not isinstance(report, dict):
+        return None
+    for key in ("url", "score", "grade", "findings", "checks", "scanned_at"):
+        if key not in report:
+            return None
+    if not isinstance(report["findings"], list):
+        return None
+    return report
 
 
 # --- PoC details per finding key: impact, reproduction steps, observed evidence.
@@ -203,31 +213,30 @@ def do_scan():
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                            grade_color=GRADE_COLOR[report["grade"]],
-                           poc_token=_store_report(report))
+                           poc_payload=_sign_report(report))
 
 
 @app.route("/poc", methods=["POST"])
 def make_poc():
-    token = request.form.get("token", "")
     name = (request.form.get("name") or "").strip()[:80]
-    entry = REPORTS.get(token)
+    report = _load_report(request.form.get("payload", ""))
 
-    def _report_page(r, tok, poc_error=None):
+    def _report_page(r, payload, poc_error=None):
         return render_template("report.html", r=r,
                                sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                                grade_color=GRADE_COLOR[r["grade"]],
-                               poc_token=tok, poc_error=poc_error)
+                               poc_payload=payload, poc_error=poc_error)
 
-    if not entry:
+    if not report:
         return render_template(
             "index.html",
-            error="That report expired — please scan the site again.")
-    _, report = entry
+            error="That report expired or was changed — please scan the site again.")
+    payload = request.form.get("payload", "")
     if not name:
-        return _report_page(report, token,
+        return _report_page(report, payload,
                             "Please enter your name for the PoC report.")
     if not report["findings"]:
-        return _report_page(report, token)
+        return _report_page(report, payload)
 
     details = []
     for f in report["findings"]:
