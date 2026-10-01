@@ -155,6 +155,7 @@
     <a class="back" href="/">&larr; New scan</a>
     <p class="target-label">Security report</p>
     <h1><span class="host">{{ r.url }}</span></h1>
+    {% if mode == "vapt" %}<p class="target-label" style="margin-top:10px">VAPT mode &mdash; 6 active vulnerability tests (detection only, non-destructive)</p>{% endif %}
 
     <div class="hero">
       <div class="ring" role="img" aria-label="Score {{ r.score }} out of 100, grade {{ r.grade }}">
