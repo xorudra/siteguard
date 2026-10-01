@@ -174,8 +174,8 @@
     </div>
 
     <div class="panel" style="margin-top:34px">
-      <p class="plabel">VAPT mode &mdash; active vulnerability tests</p>
-      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Goes beyond the passive checks above: 6 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, and verbose error pages. Detection only: nothing is written, deleted, or brute-forced.</p>
+      <p class="plabel">VAPT mode &mdash; full scan + active vulnerability tests</p>
+      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Runs the full 25-check passive scan above, plus 6 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, and verbose error pages. Detection only: nothing is written, deleted, or brute-forced.</p>
       <form class="scan" action="/vapt" method="post" id="vaptForm">
         <div class="urlwrap">
           <span class="proto">https://</span>

@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, Response, render_template, request
 from itsdangerous import BadSignature, URLSafeSerializer
-from scanner import scan, UnsafeTarget
+from scanner import DEDUCT, scan, UnsafeTarget
 from vapt import vapt_scan
 from owasp import owasp_coverage
 
@@ -409,6 +409,28 @@ def do_scan():
                            owasp=owasp_coverage(report))
 
 
+def _merge_reports(passive, active):
+    """VAPT mode: merge the passive scan and the active tests into one report.
+
+    Score uses scanner.DEDUCT over all findings; grade uses the passive
+    thresholds (A>=90, B>=80, C>=70, D>=60, else F). Pure function so it
+    can be unit-tested without network or Flask context.
+    """
+    order = {"high": 0, "medium": 1, "low": 2, "info": 3}
+    findings = sorted(passive["findings"] + active["findings"],
+                      key=lambda f: order[f["severity"]])
+    score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
+    grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
+             if score >= 70 else "D" if score >= 60 else "F")
+    return {"url": passive["url"],
+            "scanned_at": passive["scanned_at"],
+            "mode": "vapt",
+            "score": score,
+            "grade": grade,
+            "findings": findings,
+            "checks": passive["checks"] + active["checks"]}
+
+
 @app.route("/vapt", methods=["POST"])
 def do_vapt():
     """VAPT mode: 6 active (non-destructive) vulnerability tests.
@@ -437,13 +459,17 @@ def do_vapt():
                   "against sites you own or have permission to test.")
 
     try:
-        report = vapt_scan(url)
+        # VAPT mode = full passive scan + 6 active tests, merged into one
+        # report. Both scans raise UnsafeTarget for non-public targets.
+        passive = scan(url)
+        active = vapt_scan(url)
     except UnsafeTarget as e:
         return render_template("index.html", error=str(e))
     except Exception:
         return render_template(
             "index.html",
             error="Could not scan that site — check the address and try again.")
+    report = _merge_reports(passive, active)
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                            grade_color=GRADE_COLOR[report["grade"]],
