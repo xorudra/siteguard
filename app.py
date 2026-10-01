@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """SiteGuard web app — enter a URL, get a website security report."""
 import os
+import secrets
 import sys
 import time
 
@@ -16,6 +17,119 @@ SEV_LABEL = {"high": "Fix now", "medium": "Should fix",
              "low": "Nice to fix", "info": "Just so you know"}
 GRADE_COLOR = {"A": "#22a06b", "B": "#65a30d", "C": "#ca8a04",
                "D": "#ea580c", "F": "#dc2626"}
+
+# --- short-lived report store so /poc can rebuild a PoC without re-scanning ---
+REPORTS = {}
+REPORT_TTL = 3600
+
+
+def _store_report(report):
+    token = secrets.token_urlsafe(16)
+    now = time.time()
+    for k in [k for k, (ts, _) in REPORTS.items() if now - ts > REPORT_TTL]:
+        del REPORTS[k]
+    REPORTS[token] = (now, report)
+    return token
+
+
+# --- PoC details per finding key: impact, reproduction steps, observed evidence.
+# Pure static data — generating a PoC needs no AI and no tokens. TARGET in
+# repro steps is replaced with the scanned host.
+POC_DETAILS = {
+    "https": {
+        "impact": "Without HTTPS, everything visitors type — passwords, card "
+                  "numbers, messages — travels as readable text. Anyone on the "
+                  "same network (cafe WiFi, office network) can read or change it.",
+        "repro": ["Open https://TARGET in a browser — the connection fails or "
+                  "the address bar shows 'Not secure' instead of a padlock."],
+        "evidence": "The scanner could not establish an HTTPS connection to the site.",
+    },
+    "http-redirect": {
+        "impact": "Visitors who type the address without https:// land on an "
+                  "unprotected page. An attacker on the network can intercept "
+                  "that first request and steal logins (SSL stripping).",
+        "repro": ["Run: curl -sI http://TARGET",
+                  "A safe site answers 301/302 redirecting to https://. "
+                  "This one served a normal page over plain HTTP."],
+        "evidence": "A plain-HTTP request did not redirect to HTTPS.",
+    },
+    "hsts": {
+        "impact": "Without this rule, a first-time visitor can be silently "
+                  "downgraded to the insecure version of the site by an attacker "
+                  "on the network — even though HTTPS exists.",
+        "repro": ["Run: curl -sI https://TARGET | grep -i strict-transport-security",
+                  "No output means the header is missing."],
+        "evidence": "Response headers did not include Strict-Transport-Security.",
+    },
+    "clickjacking": {
+        "impact": "Other sites can embed this site invisibly in a frame and trick "
+                  "visitors into clicking buttons they cannot see (for example, "
+                  "'Delete account').",
+        "repro": ["Run: curl -sI https://TARGET | grep -iE 'x-frame-options|content-security-policy'",
+                  "No output means there is no framing protection.",
+                  "Demo: putting <iframe src='https://TARGET'></iframe> on any "
+                  "page loads this site inside it."],
+        "evidence": "The response had neither X-Frame-Options nor a "
+                    "Content-Security-Policy framing rule.",
+    },
+    "csp": {
+        "impact": "If an attacker ever manages to inject a script into a page "
+                  "(through a comment box, for example), nothing stops it from "
+                  "running and stealing visitor data.",
+        "repro": ["Run: curl -sI https://TARGET | grep -i content-security-policy",
+                  "No output means the header is missing."],
+        "evidence": "Response headers did not include Content-Security-Policy.",
+    },
+    "server-version": {
+        "impact": "The exact server version is public. Attackers search for known "
+                  "holes in that exact version instead of guessing.",
+        "repro": ["Run: curl -sI https://TARGET | grep -i '^server:'",
+                  "The version number is printed in the response."],
+        "evidence": "The Server response header exposed a version number.",
+    },
+    "x-powered-by": {
+        "impact": "Reveals the exact technology stack, giving attackers a head "
+                  "start on which exploits to try.",
+        "repro": ["Run: curl -sI https://TARGET | grep -i x-powered-by"],
+        "evidence": "The X-Powered-By header was present in the response.",
+    },
+    "cert-expired": {
+        "impact": "Browsers show a full-page security warning. Most visitors "
+                  "leave immediately and never come back.",
+        "repro": ["Run: echo | openssl s_client -connect TARGET:443 2>/dev/null "
+                  "| openssl x509 -noout -dates",
+                  "The 'notAfter' date is in the past."],
+        "evidence": "The TLS certificate's expiry date has passed.",
+    },
+    "cert-expiring": {
+        "impact": "When it lapses, browsers will block visitors with a security "
+                  "warning until it is renewed.",
+        "repro": ["Run: echo | openssl s_client -connect TARGET:443 2>/dev/null "
+                  "| openssl x509 -noout -dates",
+                  "The 'notAfter' date is within 30 days."],
+        "evidence": "The TLS certificate expires within 30 days.",
+    },
+    "git": {
+        "impact": "Anyone can download the site's private source code — often "
+                  "containing passwords and API keys developers left inside.",
+        "repro": ["Run: curl -s https://TARGET/.git/HEAD",
+                  "If it prints 'ref: refs/heads/...', the code folder is public."],
+        "evidence": "/.git/HEAD was publicly readable and contained a git ref.",
+    },
+    "env": {
+        "impact": "Database passwords, API keys and app secrets are readable by "
+                  "anyone — a full compromise of every connected service.",
+        "repro": ["Run: curl -s https://TARGET/.env",
+                  "If it prints values like DB_PASSWORD or SECRET, they are exposed."],
+        "evidence": "/.env was publicly readable and contained secret-looking values.",
+    },
+    "wp-login": {
+        "impact": "Not a vulnerability by itself — but it tells attackers exactly "
+                  "where to try stolen passwords and bot attacks.",
+        "repro": ["Open https://TARGET/wp-login.php in a browser — the login form loads."],
+        "evidence": "/wp-login.php returned HTTP 200.",
+    },
+}
 
 # --- simple in-memory rate limiting: 10 scans / hour per IP ---
 RATE_LIMIT = 10
@@ -88,7 +202,45 @@ def do_scan():
             error="Could not scan that site — check the address and try again.")
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
-                           grade_color=GRADE_COLOR[report["grade"]])
+                           grade_color=GRADE_COLOR[report["grade"]],
+                           poc_token=_store_report(report))
+
+
+@app.route("/poc", methods=["POST"])
+def make_poc():
+    token = request.form.get("token", "")
+    name = (request.form.get("name") or "").strip()[:80]
+    entry = REPORTS.get(token)
+
+    def _report_page(r, tok, poc_error=None):
+        return render_template("report.html", r=r,
+                               sev_color=SEV_COLOR, sev_label=SEV_LABEL,
+                               grade_color=GRADE_COLOR[r["grade"]],
+                               poc_token=tok, poc_error=poc_error)
+
+    if not entry:
+        return render_template(
+            "index.html",
+            error="That report expired — please scan the site again.")
+    _, report = entry
+    if not name:
+        return _report_page(report, token,
+                            "Please enter your name for the PoC report.")
+    if not report["findings"]:
+        return _report_page(report, token)
+
+    details = []
+    for f in report["findings"]:
+        d = POC_DETAILS.get(f.get("key", ""), {})
+        host = report["url"]
+        details.append({
+            "finding": f,
+            "impact": d.get("impact", ""),
+            "repro": [s.replace("TARGET", host) for s in d.get("repro", [])],
+            "evidence": d.get("evidence", ""),
+        })
+    return render_template("poc.html", r=report, name=name, details=details,
+                           sev_color=SEV_COLOR, sev_label=SEV_LABEL)
 
 
 if __name__ == "__main__":

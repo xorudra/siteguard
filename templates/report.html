@@ -38,6 +38,16 @@
   .dot{width:22px;height:22px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;color:#fff}
   .st-passed .dot{background:#22a06b}.st-failed .dot{background:#e80}.st-skipped .dot{background:#9ca3af}.st-info .dot{background:#68c}
   .st-failed{color:#111827;font-weight:600}
+  .pocbox{background:linear-gradient(135deg,#0f2027,#203a43);border-radius:14px;padding:24px;margin:22px 0 6px;color:#fff;box-shadow:0 4px 18px rgba(15,32,39,.15)}
+  .pocbox h2{margin:0 0 8px;font-size:1.2em}
+  .pocbox p{margin:0 0 16px;color:#c9d6df;font-size:.95em;line-height:1.5}
+  .pocbox form{display:flex;gap:10px}
+  .pocbox input{flex:1;min-width:0;padding:12px 14px;font-size:.95em;border:2px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(255,255,255,.08);color:#fff;outline:none}
+  .pocbox input::placeholder{color:#9fb3c0}
+  .pocbox button{padding:12px 22px;font-size:.95em;font-weight:600;background:#2f81f7;color:#fff;border:0;border-radius:10px;cursor:pointer;white-space:nowrap}
+  .pocbox button:hover{background:#1f6feb}
+  .pocbox .err{background:rgba(248,81,73,.18);border:1px solid rgba(248,81,73,.5);color:#ffb4ae;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:.9em}
+  @media(max-width:520px){.pocbox form{flex-direction:column}}
   a.btn{display:inline-block;margin-top:22px;padding:14px 30px;background:#2f81f7;color:#fff;border-radius:12px;text-decoration:none;font-weight:600}
   a.btn:hover{background:#1f6feb}
   .cta{text-align:center}
@@ -85,6 +95,19 @@
     {% endfor %}
     </ul>
   </details>
+
+  {% if r.findings %}
+  <div class="pocbox">
+    <h2>Need a Proof of Concept?</h2>
+    <p>Get a detailed PoC report of these findings with your name on it — free, generated instantly, no AI involved.</p>
+    {% if poc_error %}<div class="err">{{ poc_error }}</div>{% endif %}
+    <form action="/poc" method="post">
+      <input type="hidden" name="token" value="{{ poc_token }}">
+      <input name="name" placeholder="Your name" maxlength="80" autocomplete="name">
+      <button type="submit">Generate PoC</button>
+    </form>
+  </div>
+  {% endif %}
 
   <div class="cta"><a class="btn" href="/">Scan another site</a></div>
 </div>

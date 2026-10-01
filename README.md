@@ -4,7 +4,14 @@
 get a safety score. No signup needed.
 
 Enter a URL, get a safety score (0-100, grade A-F) and a list of problems
-explained in simple words: what it means + how to fix it.
+explained in simple words: what it means + how to fix it. Every finding can
+be turned into a personalized Proof of Concept report — just enter your name
+on the results page.
+
+## Roadmap
+- More checks, continuously — the goal is to catch every bug a site has.
+- **VAPT mode**: deeper vulnerability assessment + penetration testing for
+  websites and applications.
 
 ## Try it on your own computer (Windows)
 1. Download this repo: click the green **Code** button above, then **Download ZIP**. Unzip it anywhere.

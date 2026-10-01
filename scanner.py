@@ -21,8 +21,8 @@ MAX_REDIRECTS = 5
 DEDUCT = {"high": 25, "medium": 15, "low": 5, "info": 0}
 
 
-def _finding(severity, title, meaning, fix):
-    return {"severity": severity, "title": title,
+def _finding(severity, key, title, meaning, fix):
+    return {"severity": severity, "key": key, "title": title,
             "what_it_means": meaning, "how_to_fix": fix}
 
 
@@ -114,7 +114,7 @@ def scan(raw_url):
     except Exception:
         https_ok = False
         findings.append(_finding(
-            "high", "No secure connection (HTTPS)",
+            "high", "https", "No secure connection (HTTPS)",
             "Your site has no padlock in the browser. Visitor data "
             "(passwords, forms, payments) can be seen or changed by "
             "attackers on the network.",
@@ -133,7 +133,7 @@ def scan(raw_url):
                     and loc.startswith("https://")):
                 redir_ok = False
                 findings.append(_finding(
-                    "medium", "Insecure address still works",
+                    "medium", "http-redirect", "Insecure address still works",
                     "People who type your address without https://, or "
                     "follow old links, get an unprotected page instead of "
                     "being sent to the safe version.",
@@ -154,7 +154,7 @@ def scan(raw_url):
     elif "strict-transport-security" not in headers:
         _record("Always-use-secure-connection rule (HSTS)", "failed")
         findings.append(_finding(
-            "medium", "Missing 'always use secure connection' rule",
+            "medium", "hsts", "Missing 'always use secure connection' rule",
             "Even with HTTPS on, a first-time visitor can still be tricked "
             "onto the insecure version of your site.",
             "Ask your host to add the HSTS header, or enable it in "
@@ -167,7 +167,7 @@ def scan(raw_url):
     if "x-frame-options" not in headers and "content-security-policy" not in headers:
         _record("Clickjacking protection", "failed")
         findings.append(_finding(
-            "low", "Your site can be embedded inside other sites",
+            "low", "clickjacking", "Your site can be embedded inside other sites",
             "Attackers can invisibly layer your site inside theirs and "
             "trick visitors into clicking things they didn't mean to.",
             "Ask your developer or host to add the header "
@@ -179,7 +179,7 @@ def scan(raw_url):
     if "content-security-policy" not in headers:
         _record("Script-loading rules (CSP)", "failed")
         findings.append(_finding(
-            "low", "No script-loading rules set",
+            "low", "csp", "No script-loading rules set",
             "Without these rules it's easier for attackers to sneak "
             "malicious scripts onto your pages.",
             "This one needs a developer — ask them to add a "
@@ -192,7 +192,7 @@ def scan(raw_url):
     if server and re.search(r"\d+\.\d+", server):
         _record("Server software version hidden", "failed")
         findings.append(_finding(
-            "low", f"Server software version is visible ({server})",
+            "low", "server-version", f"Server software version is visible ({server})",
             "Your site tells everyone exactly which software version it "
             "runs. Attackers use this to look up known weaknesses.",
             "Ask your host to hide the version number (turn off "
@@ -204,7 +204,7 @@ def scan(raw_url):
     if "x-powered-by" in headers:
         _record("Technology name hidden (X-Powered-By)", "failed")
         findings.append(_finding(
-            "low", f"Technology name is visible ({headers['x-powered-by']})",
+            "low", "x-powered-by", f"Technology name is visible ({headers['x-powered-by']})",
             "Same idea as above — free clues for attackers about what "
             "to attack.",
             "Ask your host or developer to remove the X-Powered-By header."))
@@ -224,14 +224,14 @@ def scan(raw_url):
             if days < 0:
                 _record("Security certificate valid", "failed")
                 findings.append(_finding(
-                    "high", "Security certificate has expired",
+                    "high", "cert-expired", "Security certificate has expired",
                     "Browsers show a scary warning page to every visitor. "
                     "Most people leave immediately.",
                     "Renew the certificate in your hosting panel right away."))
             elif days < 30:
                 _record("Security certificate valid", "failed")
                 findings.append(_finding(
-                    "medium", f"Security certificate expires in {days} days",
+                    "medium", "cert-expiring", f"Security certificate expires in {days} days",
                     "If it lapses, visitors will see a warning page and "
                     "leave.",
                     "Set your certificate to auto-renew, or renew it in "
@@ -249,7 +249,7 @@ def scan(raw_url):
         if r.status_code == 200 and "ref:" in r.text:
             _record("Private code folder (.git) not public", "failed")
             findings.append(_finding(
-                "high", "Your website's private code folder is public",
+                "high", "git", "Your website's private code folder is public",
                 "Anyone can download your site's source code — including "
                 "passwords or keys a developer may have left inside.",
                 "Block public access to the .git folder on your server "
@@ -266,7 +266,7 @@ def scan(raw_url):
                                      or "SECRET" in r.text):
             _record("Secret keys file (.env) not public", "failed")
             findings.append(_finding(
-                "high", "A file with secret keys is public",
+                "high", "env", "A file with secret keys is public",
                 "Your .env file — which usually holds database passwords "
                 "and API keys — can be read by anyone.",
                 "Block public access to .env right away and change every "
@@ -282,7 +282,7 @@ def scan(raw_url):
         if r.status_code == 200:
             _record("WordPress login page", "info")
             findings.append(_finding(
-                "info", "WordPress login page found",
+                "info", "wp-login", "WordPress login page found",
                 "Not a problem by itself — just means attackers know "
                 "where to try passwords.",
                 "Use a strong admin password and turn on two-factor login "
