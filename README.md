@@ -3,7 +3,15 @@
 Enter a URL, get a safety score (0-100, grade A-F) and a list of problems
 explained in simple words: what it means + how to fix it.
 
-## Run it
+## Try it on your own computer (Windows, no tech skills needed)
+1. Download this repo: click the green **Code** button above, then **Download ZIP**. Unzip it anywhere.
+2. Double-click **`run.bat`**.
+3. Open **http://localhost:5050** in your browser. Done.
+
+(If it says Python is missing, install it free from [python.org](https://www.python.org/downloads/) —
+tick **"Add python.exe to PATH"** during install — then double-click `run.bat` again.)
+
+## Run it (terminal)
 ```
 pip install -r requirements.txt
 python app.py
