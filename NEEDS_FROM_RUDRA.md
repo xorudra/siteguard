@@ -27,11 +27,6 @@ This is a REAL request — not an example. Nothing below is done until you do th
 4. Click **Create Web Service**. In ~2 minutes you get a public URL like
    `https://siteguard-xxxx.onrender.com`. Done — it's live.
 
-## Step 3 (later, only when you say it's worthy) — Take payments
-1. Razorpay account (FREE to start, they take a small cut per payment).
-2. Tell me and I'll wire a "Pay Rs.499 -> unlock full report" button.
-3. No subscriptions until you say so.
-
-## Step 4 (optional, PAID ~Rs.800/year) — Your own domain
+## Step 3 (optional, PAID ~Rs.800/year) — Your own domain
 1. Buy a domain on Cloudflare or Porkbun.
 2. In Render: Settings -> Custom Domain, follow their steps.

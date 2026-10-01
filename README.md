@@ -37,7 +37,3 @@ plain-English explanation. Score starts at 100, deductions per severity.
 - **Rate limiting**: 10 scans/hour per IP, in-memory.
 - **Security headers** on our own pages (nosniff, no framing, no referrer).
 - Scan errors never leak internal details to the visitor.
-
-## Business model (current decision: NO subscriptions for now)
-Plan was one-time paid reports (~Rs.499). Payment wiring (Razorpay) comes
-later, only if the product proves worthy. See NEEDS_FROM_RUDRA.md.
