@@ -17,6 +17,8 @@
   .score-line{font-size:1.1em;color:#374151}
   .score-line b{font-size:1.3em}
   .verdict{margin:10px 0 0;color:#4b5563;line-height:1.5}
+  .tally{margin:14px 0 0;font-size:.92em;color:#6b7280}
+  .tally b.p{color:#15803d}.tally b.f{color:#b45309}
   .card{background:#fff;border-radius:14px;padding:18px 20px;margin:14px 0;box-shadow:0 2px 10px rgba(15,32,39,.06);border-left:6px solid #ddd}
   {% for sev, col in sev_color.items() %}
   .card.sev-{{ sev }}{border-left-color:{{ col }}}
@@ -26,6 +28,16 @@
   .card p{margin:8px 0;font-size:.96em;line-height:1.55;color:#374151}
   .lbl{font-weight:700;color:#111827}
   .allclear{background:#fff;border-radius:14px;padding:28px 24px;margin:14px 0;text-align:center;box-shadow:0 2px 10px rgba(15,32,39,.06);font-size:1.05em;line-height:1.6}
+  details.checks{background:#fff;border-radius:14px;margin:14px 0;box-shadow:0 2px 10px rgba(15,32,39,.06);overflow:hidden}
+  details.checks summary{padding:16px 20px;cursor:pointer;font-weight:600;color:#374151;list-style:none}
+  details.checks summary::-webkit-details-marker{display:none}
+  details.checks summary::after{content:"▾";float:right;color:#9ca3af}
+  details.checks[open] summary::after{content:"▴"}
+  details.checks ul{margin:0;padding:0 20px 16px;list-style:none}
+  details.checks li{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:.93em;color:#4b5563;border-top:1px solid #f1f3f5}
+  .dot{width:22px;height:22px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;color:#fff}
+  .st-passed .dot{background:#22a06b}.st-failed .dot{background:#e80}.st-skipped .dot{background:#9ca3af}.st-info .dot{background:#68c}
+  .st-failed{color:#111827;font-weight:600}
   a.btn{display:inline-block;margin-top:22px;padding:14px 30px;background:#2f81f7;color:#fff;border-radius:12px;text-decoration:none;font-weight:600}
   a.btn:hover{background:#1f6feb}
   .cta{text-align:center}
@@ -47,6 +59,9 @@
     {% else %}
       <p class="verdict">We found <b>{{ r.findings|length }} things</b> worth a look:</p>
     {% endif %}
+    {% set np = r.checks|selectattr('status','equalto','passed')|list|length %}
+    {% set nf = r.checks|selectattr('status','equalto','failed')|list|length %}
+    <p class="tally"><b class="p">{{ np }} passed</b> &middot; <b class="f">{{ nf }} need attention</b> &middot; {{ r.checks|length }} checks total</p>
   </div>
 
   {% if not r.findings %}
@@ -61,6 +76,15 @@
     </div>
     {% endfor %}
   {% endif %}
+
+  <details class="checks">
+    <summary>See all {{ r.checks|length }} checks</summary>
+    <ul>
+    {% for c in r.checks %}
+      <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}✓{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}–{% endif %}</span>{{ c.name }}</li>
+    {% endfor %}
+    </ul>
+  </details>
 
   <div class="cta"><a class="btn" href="/">Scan another site</a></div>
 </div>

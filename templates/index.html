@@ -7,7 +7,7 @@
 <style>
   *{box-sizing:border-box}
   body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f2027,#203a43 55%,#2c5364);color:#fff;padding:24px 16px}
-  .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:40px 36px;max-width:560px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+  .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:40px 36px;max-width:600px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}
   .logo{width:64px;height:64px;margin:0 auto 12px;display:block}
   h1{margin:0 0 8px;font-size:2em;letter-spacing:.5px}
   .tag{color:#c9d6df;margin:0 0 26px;font-size:1.02em;line-height:1.55}
@@ -18,8 +18,16 @@
   button{padding:14px 28px;font-size:1em;font-weight:600;background:#2f81f7;color:#fff;border:0;border-radius:12px;cursor:pointer;white-space:nowrap}
   button:hover{background:#1f6feb}
   button:disabled{opacity:.65;cursor:default}
+  .chips{margin:16px 0 0;font-size:.9em;color:#9fb3c0}
+  .chips button{padding:6px 14px;font-size:.88em;font-weight:500;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:20px;margin:4px 2px}
+  .chips button:hover{background:rgba(255,255,255,.2)}
   .err{background:rgba(248,81,73,.14);border:1px solid rgba(248,81,73,.5);color:#ffb4ae;padding:12px 16px;border-radius:12px;margin:0 0 18px;text-align:left;line-height:1.45}
   .fine{color:#9fb3c0;font-size:.88em;margin:20px 0 0;line-height:1.55}
+  .checks{margin:26px 0 0;padding-top:20px;border-top:1px solid rgba(255,255,255,.12)}
+  .checks .lbl{font-size:.8em;text-transform:uppercase;letter-spacing:1.5px;color:#8fa6b5;margin-bottom:12px}
+  .pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+  .pill{font-size:.8em;color:#c9d6df;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);padding:5px 12px;border-radius:20px}
+  .foot{margin:22px 0 0;font-size:.82em;color:#7d93a3}
   .spin{display:none;margin-top:20px;color:#c9d6df;font-size:.95em}
   .spin .bar{height:6px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:10px}
   .spin .bar i{display:block;height:100%;width:40%;border-radius:4px;background:#2f81f7;animation:slide 1.2s infinite ease-in-out}
@@ -37,11 +45,23 @@
     <p class="tag">Type your website address. We&rsquo;ll check it for common security problems and explain everything in simple words.</p>
     {% if error %}<div class="err">{{ error }}</div>{% endif %}
     <form action="/scan" method="post" id="scanForm">
-      <input name="url" placeholder="example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input name="url" id="urlInput" placeholder="example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button type="submit" id="scanBtn">Scan</button>
     </form>
+    <div class="chips">Try one:
+      <button type="button" data-u="example.com">example.com</button>
+      <button type="button" data-u="github.com">github.com</button>
+      <button type="button" data-u="wikipedia.org">wikipedia.org</button>
+    </div>
     <div class="spin" id="spin"><div class="bar"><i></i></div>Scanning&hellip; this takes about 30 seconds.</div>
+    <div class="checks">
+      <div class="lbl">11 checks in every scan</div>
+      <div class="pills">
+        <span class="pill">HTTPS</span><span class="pill">HTTP redirect</span><span class="pill">HSTS</span><span class="pill">Clickjacking</span><span class="pill">CSP</span><span class="pill">Server version</span><span class="pill">X-Powered-By</span><span class="pill">Certificate</span><span class="pill">Exposed .git</span><span class="pill">Exposed .env</span><span class="pill">WordPress login</span>
+      </div>
+    </div>
     <p class="fine">We only check publicly visible things &mdash; the same things an attacker would see.</p>
+    <p class="foot">Free &middot; No signup &middot; 10 scans per hour</p>
   </div>
 <script>
 document.getElementById('scanForm').addEventListener('submit', function () {
@@ -49,6 +69,12 @@ document.getElementById('scanForm').addEventListener('submit', function () {
   b.disabled = true;
   b.textContent = 'Scanning…';
   document.getElementById('spin').style.display = 'block';
+});
+document.querySelectorAll('.chips button').forEach(function (c) {
+  c.addEventListener('click', function () {
+    document.getElementById('urlInput').value = c.getAttribute('data-u');
+    document.getElementById('scanForm').requestSubmit();
+  });
 });
 </script>
 </body>
