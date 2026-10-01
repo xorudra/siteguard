@@ -249,7 +249,8 @@ def make_poc():
             "evidence": d.get("evidence", ""),
         })
     return render_template("poc.html", r=report, name=name, details=details,
-                           sev_color=SEV_COLOR, sev_label=SEV_LABEL)
+                           sev_color=SEV_COLOR, sev_label=SEV_LABEL,
+                           grade_color=GRADE_COLOR[report["grade"]])
 
 
 if __name__ == "__main__":
