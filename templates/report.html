@@ -97,6 +97,21 @@
   .st-passed .dot{background:#2f9e68} .st-failed .dot{background:#e80}
   .st-skipped .dot{background:#5b6572} .st-info .dot{background:#68c}
   .st-failed{color:var(--text); font-weight:600}
+  /* ---- owasp top 10 ---- */
+  .owasp{display:flex; flex-direction:column; gap:10px; margin-top:6px}
+  details.orow{background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden}
+  details.orow summary{padding:15px 20px; cursor:pointer; list-style:none; display:flex; align-items:center; gap:12px}
+  details.orow summary::-webkit-details-marker{display:none}
+  .oid{font-family:var(--mono); font-size:.8em; font-weight:700; color:var(--accent-hi); background:rgba(47,129,247,.12); border:1px solid rgba(47,129,247,.35); padding:4px 9px; border-radius:8px; flex:none}
+  .otitle{font-weight:600; flex:1}
+  .opill{font-size:.72em; font-weight:700; padding:4px 10px; border-radius:20px; flex:none}
+  .op-covered{background:rgba(47,158,104,.16); color:#3ecf8e; border:1px solid rgba(47,158,104,.4)}
+  .op-not-in-scan{background:rgba(232,136,0,.12); color:#f0a53c; border:1px solid rgba(232,136,0,.35)}
+  .op-not-testable{background:rgba(91,101,114,.16); color:var(--muted); border:1px solid var(--line)}
+  .obody{padding:0 20px 16px 20px; color:var(--muted); font-size:.92em; line-height:1.6}
+  .obody p{margin:0 0 10px}
+  .obody ul{margin:0; padding:0; list-style:none}
+  .obody li{display:flex; align-items:center; gap:12px; padding:7px 0; border-top:1px solid var(--line); font-family:var(--mono); font-size:.94em}
   /* ---- poc box ---- */
   .pocbox{
     margin-top:30px; border-radius:18px; padding:30px 28px; color:var(--text);
@@ -212,6 +227,29 @@
       {% endfor %}
       </ul>
     </details>
+
+    <p class="sec-label">OWASP Top 10 coverage</p>
+    <div class="owasp">
+      {% for o in owasp %}
+      <details class="orow">
+        <summary>
+          <span class="oid">{{ o.id }}</span>
+          <span class="otitle">{{ o.title }}</span>
+          <span class="opill op-{{ o.status }}">{% if o.status == 'covered' %}Covered{% elif o.status == 'not-in-scan' %}Not in this scan{% else %}Can't test externally{% endif %}</span>
+        </summary>
+        <div class="obody">
+          <p>{{ o.note }}</p>
+          {% if o.checks %}
+          <ul>
+            {% for c in o.checks %}
+            <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
 
     {% if r.findings %}
     <div class="pocbox">

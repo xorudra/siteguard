@@ -535,6 +535,59 @@ def scan(raw_url):
     except Exception:
         _record("robots.txt hides sensitive paths", "skipped")
 
+    # 24. Sensitive admin/debug paths directly reachable (OWASP A01)
+    try:
+        _admin_paths = ["/server-status", "/server-info", "/phpinfo.php",
+                        "/.DS_Store"]
+        _exposed = []
+        for _p in _admin_paths:
+            _r = _safe_get(f"https://{host}{_p}", follow=False)
+            if _r.status_code == 200 and len(_r.content) > 200:
+                _exposed.append(_p)
+        if _exposed:
+            _record("Sensitive admin paths hidden", "failed")
+            findings.append(_finding(
+                "medium", "admin-paths",
+                "Admin/debug page reachable: " + ", ".join(_exposed),
+                "Debug or server-status pages are publicly reachable. They "
+                "leak internals and sometimes allow deeper access.",
+                "Disable or password-protect these pages "
+                "(/server-status, /server-info, phpinfo)."))
+        else:
+            _record("Sensitive admin paths hidden", "passed")
+    except Exception:
+        _record("Sensitive admin paths hidden", "skipped")
+
+    # 25. Visible technology versions (OWASP A06)
+    try:
+        _html = (base.text if base is not None else "")
+        _versions = []
+        _m = re.search(
+            r'<meta[^>]+name=["\']generator["\'][^>]+content=["\']([^"\']+)',
+            _html, re.I)
+        if _m:
+            _versions.append("generator: " + _m.group(1).strip()[:60])
+        for _lib, _pat in (("jQuery", r"jquery[/-](\d+\.\d+[\.\d]*)"),
+                           ("Bootstrap", r"bootstrap[/-](\d+\.\d+[\.\d]*)"),
+                           ("WordPress", r"wp-(?:content|includes)/"),
+                           ("PHP", r"\.php[?\"']")):
+            if re.search(_pat, _html, re.I):
+                _versions.append(_lib)
+        _versions = sorted(set(_versions))
+        if _versions:
+            _record("Outdated tech versions visible", "info")
+            findings.append(_finding(
+                "info", "tech-versions",
+                "Technology fingerprints visible: " + ", ".join(_versions),
+                "Your pages reveal which software they run on. Attackers "
+                "match these against known vulnerabilities.",
+                "Remove generator tags and version strings; then check the "
+                "versions you run against a vulnerability database."))
+        else:
+            _record("Outdated tech versions visible", "passed")
+    except Exception:
+        _record("Outdated tech versions visible", "skipped")
+
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
              if score >= 70 else "D" if score >= 60 else "F")
