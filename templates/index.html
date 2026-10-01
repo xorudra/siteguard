@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SiteGuard — Website security scanner</title>
-<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 23 public security checks.">
+<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 25 public security checks.">
 <style>
   :root{
     --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
@@ -147,7 +147,7 @@
   <main>
     <p class="kicker">Website security scanner</p>
     <h1>Is your website <span class="u">actually</span> secure?</h1>
-    <p class="lede">Paste any website address. SiteGuard runs <b>23 security checks</b> against
+    <p class="lede">Paste any website address. SiteGuard runs <b>25 security checks</b> against
       the public things an attacker can see &mdash; headers, certificates, exposed files &mdash;
       and shows you exactly what to fix.</p>
 
@@ -169,7 +169,7 @@
       </div>
       <div class="spin" id="spin">
         <div class="bar"><i></i></div>
-        <p>$ siteguard scan --target &hellip; probing 23 checks, about 30 seconds</p>
+        <p>$ siteguard scan --target &hellip; probing 25 checks, about 30 seconds</p>
       </div>
     </div>
 
@@ -192,9 +192,10 @@
 
     <section class="checks">
       <p class="clabel">Coverage</p>
-      <h2>23 checks in every scan</h2>
+      <h2>25 checks in every scan</h2>
       <p class="csub">Each scan probes the headers, transport security, and exposed files of your
-        site. New checks are added over time &mdash; this list keeps growing.</p>
+        site. Every report also maps your results against the OWASP Top 10 &mdash;
+        honestly marking what can and can't be tested from outside.</p>
       <div class="grid">
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/></svg><div><span>HTTPS</span><small>Encrypted connection</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4-4 4M21 7H8M7 21l-4-4 4-4M3 17h13"/></svg><div><span>HTTP redirect</span><small>Forced to HTTPS</small></div></div>
@@ -219,6 +220,8 @@
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5"/></svg><div><span>COOP / COEP</span><small>Cross-origin isolation</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l2.4 5.3 5.3.6-4.2 3.9 1.2 5.6-5-2.9-5 2.9 1.2-5.6L4 7.9l5.6-.6z"/></svg><div><span>HSTS subdomains</span><small>All subdomains covered</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div><span>robots.txt</span><small>No sensitive paths listed</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg><div><span>Admin paths</span><small>Debug pages not public</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/></svg><div><span>Tech versions</span><small>Outdated software flagged</small></div></div>
       </div>
     </section>
   </main>

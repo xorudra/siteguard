@@ -11,6 +11,7 @@ from flask import Flask, Response, render_template, request
 from itsdangerous import BadSignature, URLSafeSerializer
 from scanner import scan, UnsafeTarget
 from vapt import vapt_scan
+from owasp import owasp_coverage
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -404,7 +405,8 @@ def do_scan():
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                            grade_color=GRADE_COLOR[report["grade"]],
-                           poc_payload=_sign_report(report))
+                           poc_payload=_sign_report(report),
+                           owasp=owasp_coverage(report))
 
 
 @app.route("/vapt", methods=["POST"])
@@ -446,7 +448,8 @@ def do_vapt():
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                            grade_color=GRADE_COLOR[report["grade"]],
                            poc_payload=_sign_report(report),
-                           mode="vapt")
+                           mode="vapt",
+                           owasp=owasp_coverage(report))
 
 
 @app.route("/poc", methods=["POST"])
@@ -458,7 +461,9 @@ def make_poc():
         return render_template("report.html", r=r,
                                sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                                grade_color=GRADE_COLOR[r["grade"]],
-                               poc_payload=payload, poc_error=poc_error)
+                               poc_payload=payload, poc_error=poc_error,
+                               mode=r.get("mode"),
+                               owasp=owasp_coverage(r))
 
     if not report:
         return render_template(

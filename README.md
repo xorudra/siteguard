@@ -6,7 +6,8 @@ get a safety score. No signup needed.
 Enter a URL, get a safety score (0-100, grade A-F) and a list of problems
 explained in simple words: what it means + how to fix it. Every finding can
 be turned into a personalized Proof of Concept report — just enter your name
-on the results page.
+on the results page. Every report also maps your results against the
+OWASP Top 10, honestly marking what can and can't be tested from outside.
 
 ## Roadmap
 - More checks, continuously — the goal is to catch every bug a site has.

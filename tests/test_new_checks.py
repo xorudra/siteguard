@@ -28,6 +28,8 @@ CHECK_NAMES = {
     21: "Cross-origin isolation (COOP/COEP)",
     22: "HSTS covers all subdomains",
     23: "robots.txt hides sensitive paths",
+    24: "Sensitive admin paths hidden",
+    25: "Outdated tech versions visible",
 }
 
 GOOD_HEADERS = {
@@ -55,6 +57,7 @@ class FakeResponse:
         self.headers = FakeHeaders(
             {k.lower(): v for k, v in (headers or {}).items()})
         self.text = text
+        self.content = text.encode()
         self.raw = self
         if set_cookies:
             self.headers["set-cookie"] = list(set_cookies)
@@ -63,7 +66,8 @@ class FakeResponse:
 def run_scan(base_headers=None, set_cookies=GOOD_COOKIES,
              security_txt=200, robots_txt=200, robots_body="",
              trace_status=405, tls_behavior="rejected",
-             fail_urls=(), base_raises=False):
+             fail_urls=(), base_raises=False,
+             admin_status=404, base_text=""):
     """Run scan() with everything faked. tls_behavior: accepted|rejected|network-fail."""
     headers = dict(GOOD_HEADERS if base_headers is None else base_headers)
 
@@ -74,13 +78,18 @@ def run_scan(base_headers=None, set_cookies=GOOD_COOKIES,
         if url == f"https://{HOST}/":
             if base_raises:
                 raise ConnectionError("mocked network failure")
-            return FakeResponse(200, headers, set_cookies=set_cookies)
+            return FakeResponse(200, headers, set_cookies=set_cookies,
+                                text=base_text)
         if url == f"http://{HOST}/":
             return FakeResponse(301, {"location": f"https://{HOST}/"})
         if url.endswith("/.git/HEAD") or url.endswith("/.env"):
             return FakeResponse(404)
         if url.endswith("/wp-login.php"):
             return FakeResponse(404)
+        if any(url.endswith(p) for p in ("/server-status", "/server-info",
+                                         "/phpinfo.php", "/.DS_Store")):
+            return FakeResponse(admin_status,
+                                text="x" * 500 if admin_status == 200 else "")
         if url.endswith("/.well-known/security.txt"):
             return FakeResponse(security_txt)
         if url.endswith("/robots.txt"):
@@ -126,9 +135,9 @@ def has_finding(result, key):
 
 
 class NewChecksTest(unittest.TestCase):
-    def test_total_check_count_is_23(self):
+    def test_total_check_count_is_25(self):
         result = run_scan()
-        self.assertEqual(len(result["checks"]), 23)
+        self.assertEqual(len(result["checks"]), 25)
 
     def test_finding_keys_unique(self):
         # worst case: everything fails at once
@@ -288,6 +297,72 @@ class NewChecksTest(unittest.TestCase):
         self.assertEqual(check_status(r, CHECK_NAMES[23]), "passed")
         r = run_scan(fail_urls=("/robots.txt",))
         self.assertEqual(check_status(r, CHECK_NAMES[23]), "skipped")
+
+    # 24. Sensitive admin paths
+    def test_24_admin_paths(self):
+        r = run_scan(admin_status=200)
+        self.assertEqual(check_status(r, CHECK_NAMES[24]), "failed")
+        self.assertTrue(has_finding(r, "admin-paths"))
+        f = next(f for f in r["findings"] if f["key"] == "admin-paths")
+        self.assertEqual(f["severity"], "medium")
+        self.assertIn("/server-status", f["title"])
+        r = run_scan(admin_status=404)
+        self.assertEqual(check_status(r, CHECK_NAMES[24]), "passed")
+        r = run_scan(fail_urls=("/server-status", "/server-info",
+                                "/phpinfo.php", "/.DS_Store"))
+        self.assertEqual(check_status(r, CHECK_NAMES[24]), "skipped")
+
+    # 25. Technology version fingerprints
+    def test_25_tech_versions(self):
+        html = ('<html><head><meta name="generator" content="WordPress 6.4">'
+                '</head><body><script src="/js/jquery-3.6.0.min.js">'
+                "</script></body></html>")
+        r = run_scan(base_text=html)
+        self.assertEqual(check_status(r, CHECK_NAMES[25]), "info")
+        self.assertTrue(has_finding(r, "tech-versions"))
+        r = run_scan(base_text="<html><body>hello</body></html>")
+        self.assertEqual(check_status(r, CHECK_NAMES[25]), "passed")
+        self.assertFalse(has_finding(r, "tech-versions"))
+
+    # OWASP mapping covers every recorded check name
+    def test_owasp_map_covers_all_checks(self):
+        from owasp import CHECK_MAP, owasp_coverage, CATEGORIES
+        r = run_scan()
+        names = [c["name"] for c in r["checks"]]
+        self.assertEqual(len(names), 25)
+        for n in names:
+            self.assertIn(n, CHECK_MAP, f"check not mapped: {n}")
+        rows = owasp_coverage(r)
+        self.assertEqual([x["id"] for x in rows],
+                         [c["id"] for c in CATEGORIES])
+        by_status = {}
+        for x in rows:
+            by_status.setdefault(x["status"], set()).add(x["id"])
+        # passive scan: A01/A02/A05/A06/A07 covered; A03 is VAPT-only;
+        # A04/A08/A09/A10 honestly marked not testable from outside
+        self.assertEqual(by_status["covered"],
+                         {"A01", "A02", "A05", "A06", "A07"})
+        self.assertEqual(by_status["not-in-scan"], {"A03"})
+        self.assertEqual(by_status["not-testable"],
+                         {"A04", "A08", "A09", "A10"})
+
+    # OWASP coverage for a VAPT-mode report
+    def test_owasp_vapt_coverage(self):
+        from owasp import owasp_coverage
+        from unittest.mock import patch
+        import vapt
+        with patch.object(vapt, "_check_url", lambda url: url), \
+             patch.object(vapt, "_safe_get",
+                          side_effect=ConnectionError("mocked down")), \
+             patch.object(vapt.requests, "options",
+                          side_effect=ConnectionError("mocked down")):
+            r = vapt.vapt_scan("example.test")
+        rows = {x["id"]: x for x in owasp_coverage(r)}
+        self.assertEqual(rows["A01"]["status"], "covered")
+        self.assertEqual(rows["A03"]["status"], "covered")
+        self.assertEqual(rows["A05"]["status"], "covered")
+        self.assertEqual(rows["A02"]["status"], "not-in-scan")
+        self.assertEqual(rows["A04"]["status"], "not-testable")
 
 
 if __name__ == "__main__":
