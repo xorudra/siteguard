@@ -250,6 +250,59 @@ def vapt_scan(raw_url):
     except Exception:
         _record("Error pages hide internals", "skipped")
 
+    # 7. Path traversal probe — can a URL read server files?
+    try:
+        r = _safe_get(f"{base}/?file=..%2f..%2f..%2fetc%2fpasswd")
+        if "root:x:" in r.text:
+            _record("Path traversal probe", "failed")
+            _deduct("high")
+            findings.append(_finding(
+                "high", "path-traversal",
+                "Server files can be read through the address bar",
+                "A trick in the web address opened a private system file. "
+                "Attackers can use this to steal passwords and code.",
+                "Never build file paths from web addresses; allow only a "
+                "fixed list of safe file names."))
+        else:
+            _record("Path traversal probe", "passed")
+    except Exception:
+        _record("Path traversal probe", "skipped")
+
+    # 8. Template injection probe (SSTI) — does the server run URL code?
+    try:
+        r = _safe_get(f"{base}/?sgname={{{{7*7}}}}")
+        if "49" in r.text and "{{7*7}}" not in r.text:
+            _record("Template injection probe (SSTI)", "failed")
+            _deduct("medium")
+            findings.append(_finding(
+                "medium", "ssti",
+                "Server may run injected template code",
+                "The server calculated a sum hidden in the web address, "
+                "which means attacker code could run on your server.",
+                "Never put visitor input directly into page templates."))
+        else:
+            _record("Template injection probe (SSTI)", "passed")
+    except Exception:
+        _record("Template injection probe (SSTI)", "skipped")
+
+    # 9. Host header injection — does the site trust fake Host headers?
+    try:
+        r = requests.get(base + "/", headers={**UA, "Host": "evil-sg-probe.com"},
+                         timeout=TIMEOUT, allow_redirects=False)
+        if r.status_code == 200 and "evil-sg-probe.com" in r.text:
+            _record("Host header injection", "failed")
+            _deduct("low")
+            findings.append(_finding(
+                "low", "host-header",
+                "Site trusts fake Host headers",
+                "The site repeated a fake server name back in its pages. "
+                "Attackers can abuse this to poison password-reset emails.",
+                "Make your server only answer to its real domain names."))
+        else:
+            _record("Host header injection", "passed")
+    except Exception:
+        _record("Host header injection", "skipped")
+
     grade = ("A" if score >= 90 else "B" if score >= 75
              else "C" if score >= 60 else "D" if score >= 40 else "F")
     return {"url": host,

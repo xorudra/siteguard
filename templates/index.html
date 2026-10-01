@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SiteGuard — Website security scanner</title>
-<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 25 public security checks.">
+<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 28 public security checks.">
 <style>
   :root{
     --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
@@ -147,7 +147,7 @@
   <main>
     <p class="kicker">Website security scanner</p>
     <h1>Is your website <span class="u">actually</span> secure?</h1>
-    <p class="lede">Paste any website address. SiteGuard runs <b>25 security checks</b> against
+    <p class="lede">Paste any website address. SiteGuard runs <b>28 security checks</b> against
       the public things an attacker can see &mdash; headers, certificates, exposed files &mdash;
       and shows you exactly what to fix.</p>
 
@@ -169,13 +169,13 @@
       </div>
       <div class="spin" id="spin">
         <div class="bar"><i></i></div>
-        <p>$ siteguard scan --target &hellip; probing 25 checks, about 30 seconds</p>
+        <p>$ siteguard scan --target &hellip; probing 28 checks, about 30 seconds</p>
       </div>
     </div>
 
     <div class="panel" style="margin-top:34px">
       <p class="plabel">VAPT mode &mdash; full scan + active vulnerability tests</p>
-      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Runs the full 25-check passive scan above, plus 6 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, and verbose error pages. Detection only: nothing is written, deleted, or brute-forced.</p>
+      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Runs the full 28-check passive scan above, plus 9 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, verbose error pages, path traversal, template injection, and Host header injection. Detection only: nothing is written, deleted, or brute-forced.</p>
       <form class="scan" action="/vapt" method="post" id="vaptForm">
         <div class="urlwrap">
           <span class="proto">https://</span>
@@ -192,7 +192,7 @@
 
     <section class="checks">
       <p class="clabel">Coverage</p>
-      <h2>25 checks in every scan</h2>
+      <h2>28 checks in every scan</h2>
       <p class="csub">Each scan probes the headers, transport security, and exposed files of your
         site. Every report also maps your results against the OWASP Top 10 &mdash;
         honestly marking what can and can't be tested from outside.</p>

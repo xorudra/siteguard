@@ -91,6 +91,9 @@ NAMES = [
     "No backup files exposed",
     "Only safe request methods enabled",
     "Error pages hide internals",
+    "Path traversal probe",
+    "Template injection probe (SSTI)",
+    "Host header injection",
 ]
 
 
