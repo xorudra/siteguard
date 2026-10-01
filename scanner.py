@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""SiteGuard scanner engine — plain-English website security checks.
+"""SiteGuard scanner engine — website security checks.
 
 scan(url) -> dict with score, grade, and findings. Every finding carries
-a plain-English explanation: what it means and how to fix it.
+a simple explanation: what it means and how to fix it.
 Only scans the domain the user asked for. HTTP-level checks only.
 """
 import ipaddress

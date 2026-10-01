@@ -1,4 +1,4 @@
-# SiteGuard — plain-English website security scanner
+# SiteGuard — website security scanner
 
 **Try it live:** https://siteguard-vf9c.onrender.com — enter any website,
 get a safety score. No signup needed.
@@ -6,13 +6,12 @@ get a safety score. No signup needed.
 Enter a URL, get a safety score (0-100, grade A-F) and a list of problems
 explained in simple words: what it means + how to fix it.
 
-## Try it on your own computer (Windows, no tech skills needed)
+## Try it on your own computer (Windows)
 1. Download this repo: click the green **Code** button above, then **Download ZIP**. Unzip it anywhere.
-2. Double-click **`run.bat`**.
-3. Open **http://localhost:5050** in your browser. Done.
+2. Double-click **`run.bat`**. Your browser opens by itself. Done.
 
-(If it says Python is missing, install it free from [python.org](https://www.python.org/downloads/) —
-tick **"Add python.exe to PATH"** during install — then double-click `run.bat` again.)
+(If Python is missing, `run.bat` opens the Microsoft Store for you —
+install Python from there, then double-click `run.bat` again.)
 
 ## Run it (terminal)
 ```
@@ -29,7 +28,7 @@ at the repo. `render.yaml` sets the build/start commands automatically.
 `scanner.py` runs 11 HTTP-level checks (HTTPS, HSTS, security headers,
 certificate expiry, exposed .git/.env, server version leaks, WordPress
 login). Each finding has a severity (high/medium/low/info) and a
-plain-English explanation. Score starts at 100, deductions per severity.
+simple explanation of what it means and how to fix it. Score starts at 100, deductions per severity.
 
 `app.py` is a small Flask app: form on `/`, report on `/scan`.
 
