@@ -10,8 +10,16 @@ on the results page.
 
 ## Roadmap
 - More checks, continuously — the goal is to catch every bug a site has.
-- **VAPT mode**: deeper vulnerability assessment + penetration testing for
-  websites and applications.
+
+## VAPT mode (live)
+A second, opt-in scan mode at the bottom of the homepage. 6 active,
+non-destructive tests: reflected input, database error leaks, open
+redirects, leftover backup files, risky HTTP methods, verbose error pages.
+Detection only — nothing is written, deleted, or brute-forced. Requires
+ticking a permission box (only test sites you own or may test), and reuses
+the same SSRF guard, redirect validation, and 10 scans/hour/IP limit as the
+passive scan. Implemented in `vapt.py` (`vapt_scan()`), tested in
+`tests/test_vapt.py` (13 mocked tests).
 
 ## Try it on your own computer (Windows)
 1. Download this repo: click the green **Code** button above, then **Download ZIP**. Unzip it anywhere.

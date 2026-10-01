@@ -173,6 +173,23 @@
       </div>
     </div>
 
+    <div class="panel" style="margin-top:34px">
+      <p class="plabel">VAPT mode &mdash; active vulnerability tests</p>
+      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Goes beyond the passive checks above: 6 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, and verbose error pages. Detection only: nothing is written, deleted, or brute-forced.</p>
+      <form class="scan" action="/vapt" method="post" id="vaptForm">
+        <div class="urlwrap">
+          <span class="proto">https://</span>
+          <input name="url" placeholder="example.com" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" aria-label="Website address">
+        </div>
+        <button class="go" type="submit">Run VAPT</button>
+      </form>
+      <label style="display:flex; gap:9px; align-items:flex-start; margin-top:14px; color:var(--muted); font-size:.92em; line-height:1.5; cursor:pointer">
+        <input type="checkbox" name="consent" form="vaptForm" required style="margin-top:4px; accent-color:#1f6feb">
+        <span>I own this website or have written permission to test it. I understand these are active probes.</span>
+      </label>
+    </div>
+
     <section class="checks">
       <p class="clabel">Coverage</p>
       <h2>23 checks in every scan</h2>
@@ -217,6 +234,11 @@ document.getElementById('scanForm').addEventListener('submit', function () {
   b.disabled = true;
   b.textContent = 'Scanning…';
   document.getElementById('spin').style.display = 'block';
+});
+document.getElementById('vaptForm').addEventListener('submit', function () {
+  var b = this.querySelector('button.go');
+  b.disabled = true;
+  b.textContent = 'Testing…';
 });
 document.querySelectorAll('.chips button').forEach(function (c) {
   c.addEventListener('click', function () {

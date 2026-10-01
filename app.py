@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from flask import Flask, Response, render_template, request
 from itsdangerous import BadSignature, URLSafeSerializer
 from scanner import scan, UnsafeTarget
+from vapt import vapt_scan
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
@@ -404,6 +405,48 @@ def do_scan():
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                            grade_color=GRADE_COLOR[report["grade"]],
                            poc_payload=_sign_report(report))
+
+
+@app.route("/vapt", methods=["POST"])
+def do_vapt():
+    """VAPT mode: 6 active (non-destructive) vulnerability tests.
+
+    Requires the consent checkbox — only scan sites you own or have
+    permission to test. Same rate limit and SSRF guard as passive scans.
+    """
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "?")
+    ip = ip.split(",")[0].strip()
+    if not _rate_ok(ip):
+        return render_template(
+            "index.html",
+            error="Too many scans from you lately — please wait a bit and try again."), 429
+
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        return render_template("index.html",
+                               error="Please enter a website address.")
+    if len(url) > 253:
+        return render_template("index.html",
+                               error="That address looks too long to be real.")
+    if not request.form.get("consent"):
+        return render_template(
+            "index.html",
+            error="Please tick the permission box — VAPT tests may only run "
+                  "against sites you own or have permission to test.")
+
+    try:
+        report = vapt_scan(url)
+    except UnsafeTarget as e:
+        return render_template("index.html", error=str(e))
+    except Exception:
+        return render_template(
+            "index.html",
+            error="Could not scan that site — check the address and try again.")
+    return render_template("report.html", r=report,
+                           sev_color=SEV_COLOR, sev_label=SEV_LABEL,
+                           grade_color=GRADE_COLOR[report["grade"]],
+                           poc_payload=_sign_report(report),
+                           mode="vapt")
 
 
 @app.route("/poc", methods=["POST"])
