@@ -86,6 +86,9 @@ CHECK_MAP = {
     "robots.txt hides sensitive paths": "A01",
     "Sensitive admin paths hidden": "A01",
     "Outdated tech versions visible": "A06",
+    "Debug page exposed (phpinfo.php)": "A01",
+    "Server status page exposed": "A01",
+    "Mac junk file exposed (.DS_Store)": "A05",
     # --- VAPT mode ---
     "User input reflected in pages": "A03",
     "Database errors hidden": "A03",
@@ -93,6 +96,9 @@ CHECK_MAP = {
     "No backup files exposed": "A01",
     "Only safe request methods enabled": "A05",
     "Error pages hide internals": "A05",
+    "Path traversal probe": "A01",
+    "Template injection probe (SSTI)": "A03",
+    "Host header injection": "A05",
 }
 
 

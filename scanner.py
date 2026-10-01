@@ -588,6 +588,55 @@ def scan(raw_url):
     except Exception:
         _record("Outdated tech versions visible", "skipped")
 
+    # 26. Debug page exposed (phpinfo.php)
+    try:
+        _r = _get(f"https://{host}/phpinfo.php")
+        if _r.status_code == 200 and 'phpinfo()' in _r.text.lower():
+            _record("Debug page exposed (phpinfo.php)", "failed")
+            findings.append(_finding(
+                "medium", "phpinfo-exposed",
+                "PHP debug page is publicly accessible",
+                "A debug page shows attackers your exact server setup, which "
+                "helps them pick an attack.",
+                "Delete phpinfo.php or block it in your server settings."))
+        else:
+            _record("Debug page exposed (phpinfo.php)", "passed")
+    except Exception:
+        _record("Debug page exposed (phpinfo.php)", "skipped")
+
+    # 27. Server status page exposed
+    try:
+        _r = _get(f"https://{host}/server-status")
+        if (_r.status_code == 200
+                and ('apache status' in _r.text.lower()
+                     or 'server-status' in _r.text.lower())):
+            _record("Server status page exposed", "failed")
+            findings.append(_finding(
+                "medium", "server-status",
+                "Server status page is publicly accessible",
+                "A live status page shows attackers how busy your server is "
+                "and what it is running.",
+                "Turn off the server-status page in your web server settings."))
+        else:
+            _record("Server status page exposed", "passed")
+    except Exception:
+        _record("Server status page exposed", "skipped")
+    # 28. Mac junk file exposed (.DS_Store)
+    try:
+        _r = _get(f"https://{host}/.DS_Store")
+        if _r.status_code == 200 and len(_r.text) > 100:
+            _record("Mac junk file exposed (.DS_Store)", "failed")
+            findings.append(_finding(
+                "low", "ds-store",
+                ".DS_Store file is publicly accessible",
+                "A leftover Mac system file can reveal the names of files "
+                "and folders on your server.",
+                "Delete .DS_Store files from your website's folders."))
+        else:
+            _record("Mac junk file exposed (.DS_Store)", "passed")
+    except Exception:
+        _record("Mac junk file exposed (.DS_Store)", "skipped")
+
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
              if score >= 70 else "D" if score >= 60 else "F")
