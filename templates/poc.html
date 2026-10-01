@@ -152,6 +152,11 @@
 
       <div class="toolbar">
         <button class="print" id="printBtn">Print / Save as PDF</button>
+        <form method="post" action="/poc/pdf" style="display:inline; margin:0">
+          <input type="hidden" name="payload" value="{{ payload }}">
+          <input type="hidden" name="name" value="{{ name }}">
+          <button type="submit">Download PDF</button>
+        </form>
         <a class="back" href="/">New scan</a>
       </div>
 
