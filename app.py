@@ -39,6 +39,20 @@ def _security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
+    # HSTS: tell browsers to only ever use HTTPS for this site (1 year).
+    resp.headers["Strict-Transport-Security"] = \
+        "max-age=31536000; includeSubDomains"
+    # CSP: our pages use only same-origin + inline styles/scripts, nothing
+    # external — lock everything else down.
+    resp.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'"
+    )
     return resp
 
 
