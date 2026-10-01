@@ -3,66 +3,202 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SiteGuard — Is your website safe?</title>
+<title>SiteGuard — Website security scanner</title>
+<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 11 public security checks.">
 <style>
+  :root{
+    --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
+    --text:#e9eef5; --muted:#98a4b6; --faint:#6b7688;
+    --accent:#2f81f7; --accent-hi:#4da3ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#0f2027,#203a43 55%,#2c5364);color:#fff;padding:24px 16px}
-  .card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:40px 36px;max-width:600px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}
-  .logo{width:64px;height:64px;margin:0 auto 12px;display:block}
-  h1{margin:0 0 8px;font-size:2em;letter-spacing:.5px}
-  .tag{color:#c9d6df;margin:0 0 26px;font-size:1.02em;line-height:1.55}
-  form{display:flex;gap:10px}
-  input{flex:1;min-width:0;padding:14px 16px;font-size:1em;border:2px solid rgba(255,255,255,.2);border-radius:12px;background:rgba(255,255,255,.08);color:#fff;outline:none}
-  input::placeholder{color:#9fb3c0}
-  input:focus{border-color:#2f81f7}
-  button{padding:14px 28px;font-size:1em;font-weight:600;background:#2f81f7;color:#fff;border:0;border-radius:12px;cursor:pointer;white-space:nowrap}
-  button:hover{background:#1f6feb}
-  button:disabled{opacity:.65;cursor:default}
-  .chips{margin:16px 0 0;font-size:.9em;color:#9fb3c0}
-  .chips button{padding:6px 14px;font-size:.88em;font-weight:500;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.16);border-radius:20px;margin:4px 2px}
-  .chips button:hover{background:rgba(255,255,255,.2)}
-  .err{background:rgba(248,81,73,.14);border:1px solid rgba(248,81,73,.5);color:#ffb4ae;padding:12px 16px;border-radius:12px;margin:0 0 18px;text-align:left;line-height:1.45}
-  .fine{color:#9fb3c0;font-size:.88em;margin:20px 0 0;line-height:1.55}
-  .checks{margin:26px 0 0;padding-top:20px;border-top:1px solid rgba(255,255,255,.12)}
-  .checks .lbl{font-size:.8em;text-transform:uppercase;letter-spacing:1.5px;color:#8fa6b5;margin-bottom:12px}
-  .pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-  .pill{font-size:.8em;color:#c9d6df;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);padding:5px 12px;border-radius:20px}
-  .foot{margin:22px 0 0;font-size:.82em;color:#7d93a3}
-  .spin{display:none;margin-top:20px;color:#c9d6df;font-size:.95em}
-  .spin .bar{height:6px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden;margin-bottom:10px}
-  .spin .bar i{display:block;height:100%;width:40%;border-radius:4px;background:#2f81f7;animation:slide 1.2s infinite ease-in-out}
-  @keyframes slide{0%{margin-left:-40%}100%{margin-left:100%}}
-  @media(max-width:520px){form{flex-direction:column}.card{padding:32px 22px}}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; font-family:var(--sans); color:var(--text); background:var(--bg);
+    min-height:100vh; display:flex; flex-direction:column;
+    background-image:
+      linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size:44px 44px;
+  }
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; border-bottom:1px solid var(--line);
+    background:rgba(10,13,18,.82); backdrop-filter:blur(8px);
+    position:sticky; top:0; z-index:10;
+  }
+  .brand{display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--text)}
+  .brand svg{width:30px; height:30px; display:block}
+  .brand b{font-size:1.12em; letter-spacing:.4px; font-weight:700}
+  .brand b span{color:var(--accent-hi)}
+  .topbar nav a{
+    color:var(--muted); text-decoration:none; font-size:.92em; font-weight:500;
+    border:1px solid var(--line); border-radius:9px; padding:9px 16px; display:inline-block;
+  }
+  .topbar nav a:hover{color:var(--text); border-color:rgba(255,255,255,.22)}
+  /* ---- main ---- */
+  main{flex:1; width:100%; max-width:880px; margin:0 auto; padding:72px 24px 40px}
+  .kicker{
+    font-family:var(--mono); font-size:.78em; letter-spacing:3px; color:var(--accent-hi);
+    text-transform:uppercase; margin:0 0 18px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .kicker::after{content:""; height:1px; width:72px; background:var(--line)}
+  h1{
+    margin:0 0 16px; font-size:clamp(2.1em, 5.4vw, 3.3em); line-height:1.08;
+    letter-spacing:-1.2px; font-weight:750; max-width:16ch;
+  }
+  h1 .u{color:var(--accent-hi)}
+  .lede{margin:0 0 34px; font-size:1.12em; line-height:1.65; color:var(--muted); max-width:58ch}
+  .lede b{color:var(--text); font-weight:600}
+  /* ---- scan panel ---- */
+  .panel{
+    background:var(--surface); border:1px solid var(--line); border-radius:18px;
+    padding:26px; box-shadow:0 24px 70px rgba(0,0,0,.45);
+  }
+  .panel .plabel{font-family:var(--mono); font-size:.76em; letter-spacing:2px; color:var(--faint); text-transform:uppercase; margin:0 0 14px}
+  form.scan{display:flex; gap:10px}
+  .urlwrap{
+    flex:1; min-width:0; display:flex; align-items:center;
+    background:#0b0f15; border:2px solid rgba(255,255,255,.14); border-radius:12px;
+    transition:border-color .15s;
+  }
+  .urlwrap:focus-within{border-color:var(--accent)}
+  .urlwrap .proto{font-family:var(--mono); color:var(--faint); font-size:.95em; padding-left:16px; user-select:none}
+  .urlwrap input{
+    flex:1; min-width:0; border:0; background:transparent; color:var(--text);
+    font-family:var(--mono); font-size:1em; padding:15px 8px 15px 4px; outline:none;
+  }
+  .urlwrap input::placeholder{color:var(--faint)}
+  button.go{
+    padding:15px 34px; font-size:1em; font-weight:700; font-family:var(--sans);
+    background:var(--accent); color:#fff; border:0; border-radius:12px; cursor:pointer; white-space:nowrap;
+    min-height:48px;
+  }
+  button.go:hover{background:#1f6feb}
+  button.go:disabled{opacity:.6; cursor:default}
+  .chips{margin:16px 0 0; font-size:.9em; color:var(--faint); display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+  .chips button{
+    font-family:var(--mono); font-size:.86em; color:var(--muted);
+    background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:20px;
+    padding:8px 16px; cursor:pointer; min-height:36px;
+  }
+  .chips button:hover{color:var(--text); border-color:rgba(255,255,255,.25); background:rgba(255,255,255,.09)}
+  .err{
+    background:rgba(248,81,73,.1); border:1px solid rgba(248,81,73,.45); color:#ffb4ae;
+    padding:13px 16px; border-radius:12px; margin:0 0 18px; line-height:1.5; font-size:.95em;
+  }
+  .spin{display:none; margin-top:20px}
+  .spin .bar{height:6px; border-radius:4px; background:rgba(255,255,255,.09); overflow:hidden; margin-bottom:12px}
+  .spin .bar i{display:block; height:100%; width:38%; border-radius:4px; background:var(--accent); animation:slide 1.15s infinite ease-in-out}
+  @keyframes slide{0%{margin-left:-38%}100%{margin-left:100%}}
+  .spin p{margin:0; color:var(--muted); font-size:.93em; font-family:var(--mono)}
+  /* ---- checks grid ---- */
+  .checks{margin-top:64px}
+  .checks .clabel{font-family:var(--mono); font-size:.78em; letter-spacing:2.5px; color:var(--faint); text-transform:uppercase; margin:0 0 6px}
+  .checks h2{margin:0 0 8px; font-size:1.5em; letter-spacing:-.4px; font-weight:700}
+  .checks .csub{margin:0 0 22px; color:var(--muted); line-height:1.6; max-width:60ch}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+  .tile{
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:15px 16px; display:flex; align-items:center; gap:12px;
+  }
+  .tile svg{width:20px; height:20px; flex:none; stroke:var(--accent-hi)}
+  .tile span{font-family:var(--mono); font-size:.88em; color:var(--text)}
+  .tile small{display:block; font-family:var(--sans); font-size:.78em; color:var(--faint); margin-top:3px}
+  /* ---- footer ---- */
+  footer{
+    border-top:1px solid var(--line); padding:26px 28px; display:flex; flex-wrap:wrap;
+    gap:12px; align-items:center; justify-content:space-between;
+    color:var(--faint); font-size:.86em;
+  }
+  footer .fline{display:flex; align-items:center; gap:8px}
+  footer .dotsep{opacity:.5}
+  footer a{color:var(--muted); text-decoration:none}
+  footer a:hover{color:var(--text)}
+  @media(max-width:680px){
+    .grid{grid-template-columns:repeat(2,1fr)}
+    main{padding-top:48px}
+  }
+  @media(max-width:520px){
+    form.scan{flex-direction:column}
+    button.go{width:100%}
+    .topbar{padding:14px 18px}
+    .grid{grid-template-columns:1fr}
+    .panel{padding:20px}
+  }
 </style>
 </head>
 <body>
-  <div class="card">
-    <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/>
-      <path d="M9 12l2 2 4-4"/>
-    </svg>
-    <h1>SiteGuard</h1>
-    <p class="tag">Type your website address. We&rsquo;ll check it for common security problems and explain everything in simple words.</p>
-    {% if error %}<div class="err">{{ error }}</div>{% endif %}
-    <form action="/scan" method="post" id="scanForm">
-      <input name="url" id="urlInput" placeholder="example.com" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button type="submit" id="scanBtn">Scan</button>
-    </form>
-    <div class="chips">Try one:
-      <button type="button" data-u="example.com">example.com</button>
-      <button type="button" data-u="github.com">github.com</button>
-      <button type="button" data-u="wikipedia.org">wikipedia.org</button>
-    </div>
-    <div class="spin" id="spin"><div class="bar"><i></i></div>Scanning&hellip; this takes about 30 seconds.</div>
-    <div class="checks">
-      <div class="lbl">11 checks in every scan</div>
-      <div class="pills">
-        <span class="pill">HTTPS</span><span class="pill">HTTP redirect</span><span class="pill">HSTS</span><span class="pill">Clickjacking</span><span class="pill">CSP</span><span class="pill">Server version</span><span class="pill">X-Powered-By</span><span class="pill">Certificate</span><span class="pill">Exposed .git</span><span class="pill">Exposed .env</span><span class="pill">WordPress login</span>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="SiteGuard home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+      <b>Site<span>Guard</span></b>
+    </a>
+    <nav><a href="https://github.com/xorudra/siteguard">GitHub</a></nav>
+  </header>
+
+  <main>
+    <p class="kicker">Website security scanner</p>
+    <h1>Is your website <span class="u">actually</span> secure?</h1>
+    <p class="lede">Paste any website address. SiteGuard runs <b>11 security checks</b> against
+      the public things an attacker can see &mdash; headers, certificates, exposed files &mdash;
+      and shows you exactly what to fix.</p>
+
+    <div class="panel">
+      <p class="plabel">Start a scan</p>
+      {% if error %}<div class="err">{{ error }}</div>{% endif %}
+      <form class="scan" action="/scan" method="post" id="scanForm">
+        <div class="urlwrap">
+          <span class="proto">https://</span>
+          <input name="url" id="urlInput" placeholder="example.com" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" aria-label="Website address">
+        </div>
+        <button class="go" type="submit" id="scanBtn">Scan</button>
+      </form>
+      <div class="chips"><span>Try one:</span>
+        <button type="button" data-u="example.com">example.com</button>
+        <button type="button" data-u="github.com">github.com</button>
+        <button type="button" data-u="wikipedia.org">wikipedia.org</button>
+      </div>
+      <div class="spin" id="spin">
+        <div class="bar"><i></i></div>
+        <p>$ siteguard scan --target &hellip; probing 11 checks, about 30 seconds</p>
       </div>
     </div>
-    <p class="fine">We only check publicly visible things &mdash; the same things an attacker would see.</p>
-    <p class="foot">Free &middot; No signup &middot; 10 scans per hour</p>
-  </div>
+
+    <section class="checks">
+      <p class="clabel">Coverage</p>
+      <h2>11 checks in every scan</h2>
+      <p class="csub">Each scan probes the headers, transport security, and exposed files of your
+        site. New checks are added over time &mdash; this list keeps growing.</p>
+      <div class="grid">
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/></svg><div><span>HTTPS</span><small>Encrypted connection</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4-4 4M21 7H8M7 21l-4-4 4-4M3 17h13"/></svg><div><span>HTTP redirect</span><small>Forced to HTTPS</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5"/></svg><div><span>HSTS</span><small>HTTPS enforcement</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg><div><span>Clickjacking</span><small>Framing protection</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div><span>CSP</span><small>Content Security Policy</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="12" rx="2"/><path d="M8 8V6a4 4 0 018 0v2"/></svg><div><span>Server version</span><small>No version leaks</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg><div><span>X-Powered-By</span><small>Tech-stack hiding</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l2.4 5.3 5.6.6-4.2 3.9 1.2 5.6-5-2.9-5 2.9 1.2-5.6L4 7.9l5.6-.6z"/></svg><div><span>Certificate</span><small>TLS certificate health</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div><span>Exposed .git</span><small>Repo not public</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6"/></svg><div><span>Exposed .env</span><small>Secrets not leaked</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><div><span>WordPress login</span><small>Admin not exposed</small></div></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="fline"><span>SiteGuard</span><span class="dotsep">&middot;</span><span>Free</span><span class="dotsep">&middot;</span><span>No signup</span><span class="dotsep">&middot;</span><span>10 scans/hour</span></div>
+    <a href="https://github.com/xorudra/siteguard">github.com/xorudra/siteguard</a>
+  </footer>
+
 <script>
 document.getElementById('scanForm').addEventListener('submit', function () {
   var b = document.getElementById('scanBtn');

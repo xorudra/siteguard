@@ -5,111 +5,229 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SiteGuard report — {{ r.url }}</title>
 <style>
+  :root{
+    --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
+    --text:#e9eef5; --muted:#98a4b6; --faint:#6b7688;
+    --accent:#2f81f7; --accent-hi:#4da3ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:#eef1f5;color:#1f2937;padding:32px 16px 64px}
-  .wrap{max-width:680px;margin:0 auto}
-  .back{color:#2f81f7;text-decoration:none;font-size:.95em}
-  .back:hover{text-decoration:underline}
-  h1{font-size:1.5em;margin:12px 0 4px;word-break:break-all}
-  .meta{color:#6b7280;font-size:.88em;margin:0 0 20px}
-  .hero{background:#fff;border-radius:18px;padding:32px 24px;text-align:center;box-shadow:0 4px 18px rgba(15,32,39,.08);margin-bottom:8px}
-  .badge{width:110px;height:110px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:3em;font-weight:800;color:#fff;background:{{ grade_color }}}
-  .score-line{font-size:1.1em;color:#374151}
-  .score-line b{font-size:1.3em}
-  .verdict{margin:10px 0 0;color:#4b5563;line-height:1.5}
-  .tally{margin:14px 0 0;font-size:.92em;color:#6b7280}
-  .tally b.p{color:#15803d}.tally b.f{color:#b45309}
-  .card{background:#fff;border-radius:14px;padding:18px 20px;margin:14px 0;box-shadow:0 2px 10px rgba(15,32,39,.06);border-left:6px solid #ddd}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; font-family:var(--sans); color:var(--text); background:var(--bg);
+    min-height:100vh; display:flex; flex-direction:column;
+    background-image:
+      linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size:44px 44px;
+  }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; border-bottom:1px solid var(--line);
+    background:rgba(10,13,18,.82); backdrop-filter:blur(8px);
+    position:sticky; top:0; z-index:10;
+  }
+  .brand{display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--text)}
+  .brand svg{width:28px; height:28px; display:block}
+  .brand b{font-size:1.08em; letter-spacing:.4px; font-weight:700}
+  .brand b span{color:var(--accent-hi)}
+  .scanned{font-family:var(--mono); font-size:.82em; color:var(--faint)}
+  main{flex:1; width:100%; max-width:860px; margin:0 auto; padding:40px 24px 56px}
+  .back{display:inline-flex; align-items:center; gap:8px; color:var(--muted); text-decoration:none; font-size:.92em; font-weight:500; margin-bottom:22px}
+  .back:hover{color:var(--text)}
+  .target-label{font-family:var(--mono); font-size:.76em; letter-spacing:2.5px; color:var(--faint); text-transform:uppercase; margin:0 0 8px}
+  h1{margin:0 0 26px; font-size:clamp(1.4em,3.4vw,1.9em); letter-spacing:-.5px; font-weight:700; word-break:break-all}
+  h1 .host{font-family:var(--mono); font-weight:600}
+  /* ---- hero ---- */
+  .hero{
+    background:var(--surface); border:1px solid var(--line); border-radius:20px;
+    padding:34px 30px; display:flex; gap:34px; align-items:center;
+    box-shadow:0 24px 70px rgba(0,0,0,.45); margin-bottom:26px;
+  }
+  .ring{flex:none; position:relative; width:148px; height:148px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .g{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:3.2em; font-weight:800; letter-spacing:-1px;
+  }
+  .hero-body{min-width:0}
+  .score-line{font-family:var(--mono); font-size:1em; color:var(--muted); margin:0 0 6px}
+  .score-line b{font-size:1.6em; color:var(--text); font-weight:700}
+  .verdict{margin:0 0 18px; font-size:1.08em; line-height:1.55; color:var(--text)}
+  .verdict b{font-weight:700}
+  .stats{display:flex; gap:10px; flex-wrap:wrap}
+  .stat{
+    background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:11px;
+    padding:10px 16px; min-width:104px;
+  }
+  .stat .n{font-size:1.35em; font-weight:750; letter-spacing:-.4px; display:block}
+  .stat .l{font-size:.76em; color:var(--faint); text-transform:uppercase; letter-spacing:1.2px}
+  .stat.ok .n{color:#3fb97f} .stat.warn .n{color:#f0a832} .stat.all .n{color:var(--muted)}
+  /* ---- findings ---- */
+  .sec-label{font-family:var(--mono); font-size:.78em; letter-spacing:2.5px; color:var(--faint); text-transform:uppercase; margin:34px 0 14px}
+  .card{
+    background:var(--surface); border:1px solid var(--line); border-left:5px solid #888;
+    border-radius:14px; padding:22px 24px; margin:0 0 14px;
+  }
   {% for sev, col in sev_color.items() %}
   .card.sev-{{ sev }}{border-left-color:{{ col }}}
   {% endfor %}
-  .pill{display:inline-block;color:#fff;font-size:.78em;font-weight:600;padding:4px 12px;border-radius:20px;margin-bottom:8px;letter-spacing:.3px}
-  .card h3{margin:2px 0 10px;font-size:1.08em}
-  .card p{margin:8px 0;font-size:.96em;line-height:1.55;color:#374151}
-  .lbl{font-weight:700;color:#111827}
-  .allclear{background:#fff;border-radius:14px;padding:28px 24px;margin:14px 0;text-align:center;box-shadow:0 2px 10px rgba(15,32,39,.06);font-size:1.05em;line-height:1.6}
-  details.checks{background:#fff;border-radius:14px;margin:14px 0;box-shadow:0 2px 10px rgba(15,32,39,.06);overflow:hidden}
-  details.checks summary{padding:16px 20px;cursor:pointer;font-weight:600;color:#374151;list-style:none}
+  .card .row1{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px}
+  .pill{color:#fff; font-size:.76em; font-weight:700; padding:5px 13px; border-radius:20px; letter-spacing:.6px; text-transform:uppercase}
+  .card h3{margin:0; font-size:1.16em; letter-spacing:-.2px}
+  .card .frow{display:grid; grid-template-columns:130px 1fr; gap:14px; padding:10px 0; border-top:1px solid var(--line); font-size:.96em; line-height:1.6}
+  .card .frow:first-of-type{border-top:0}
+  .card .fl{font-family:var(--mono); font-size:.78em; letter-spacing:1.4px; color:var(--faint); text-transform:uppercase; padding-top:4px}
+  .card .fv{color:#c7d0dd; margin:0}
+  .allclear{
+    background:rgba(63,185,127,.07); border:1px solid rgba(63,185,127,.35); border-radius:14px;
+    padding:30px 26px; text-align:center; font-size:1.06em; line-height:1.65; color:#c9e8d8;
+  }
+  .allclear b{color:#fff}
+  /* ---- all checks ---- */
+  details.checks{background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-top:6px}
+  details.checks summary{padding:17px 22px; cursor:pointer; font-weight:600; color:var(--text); list-style:none; display:flex; justify-content:space-between; align-items:center}
   details.checks summary::-webkit-details-marker{display:none}
-  details.checks summary::after{content:"▾";float:right;color:#9ca3af}
-  details.checks[open] summary::after{content:"▴"}
-  details.checks ul{margin:0;padding:0 20px 16px;list-style:none}
-  details.checks li{display:flex;align-items:center;gap:10px;padding:7px 0;font-size:.93em;color:#4b5563;border-top:1px solid #f1f3f5}
-  .dot{width:22px;height:22px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;color:#fff}
-  .st-passed .dot{background:#22a06b}.st-failed .dot{background:#e80}.st-skipped .dot{background:#9ca3af}.st-info .dot{background:#68c}
-  .st-failed{color:#111827;font-weight:600}
-  .pocbox{background:linear-gradient(135deg,#0f2027,#203a43);border-radius:14px;padding:24px;margin:22px 0 6px;color:#fff;box-shadow:0 4px 18px rgba(15,32,39,.15)}
-  .pocbox h2{margin:0 0 8px;font-size:1.2em}
-  .pocbox p{margin:0 0 16px;color:#c9d6df;font-size:.95em;line-height:1.5}
-  .pocbox form{display:flex;gap:10px}
-  .pocbox input{flex:1;min-width:0;padding:12px 14px;font-size:.95em;border:2px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(255,255,255,.08);color:#fff;outline:none}
-  .pocbox input::placeholder{color:#9fb3c0}
-  .pocbox button{padding:12px 22px;font-size:.95em;font-weight:600;background:#2f81f7;color:#fff;border:0;border-radius:10px;cursor:pointer;white-space:nowrap}
+  details.checks summary .chev{color:var(--faint); transition:transform .15s}
+  details.checks[open] summary .chev{transform:rotate(180deg)}
+  details.checks ul{margin:0; padding:4px 22px 18px; list-style:none}
+  details.checks li{display:flex; align-items:center; gap:12px; padding:9px 0; font-size:.94em; color:var(--muted); border-top:1px solid var(--line); font-family:var(--mono)}
+  .dot{width:24px; height:24px; border-radius:50%; flex:none; display:inline-flex; align-items:center; justify-content:center; font-size:.72em; font-weight:800; color:#fff; font-family:var(--sans)}
+  .st-passed .dot{background:#2f9e68} .st-failed .dot{background:#e80}
+  .st-skipped .dot{background:#5b6572} .st-info .dot{background:#68c}
+  .st-failed{color:var(--text); font-weight:600}
+  /* ---- poc box ---- */
+  .pocbox{
+    margin-top:30px; border-radius:18px; padding:30px 28px; color:var(--text);
+    background:var(--surface2); border:1px solid var(--line);
+    box-shadow:0 18px 50px rgba(0,0,0,.4); position:relative; overflow:hidden;
+  }
+  .pocbox::before{content:""; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--accent)}
+  .pocbox h2{margin:0 0 8px; font-size:1.3em; letter-spacing:-.3px}
+  .pocbox p{margin:0 0 18px; color:var(--muted); font-size:.96em; line-height:1.6}
+  .pocbox form{display:flex; gap:10px}
+  .pocbox input{
+    flex:1; min-width:0; padding:14px 16px; font-size:.95em; font-family:var(--sans);
+    border:2px solid rgba(255,255,255,.14); border-radius:11px; background:#0b0f15; color:var(--text); outline:none;
+  }
+  .pocbox input::placeholder{color:var(--faint)}
+  .pocbox input:focus{border-color:var(--accent)}
+  .pocbox button{
+    padding:14px 26px; font-size:.95em; font-weight:700; background:var(--accent); color:#fff;
+    border:0; border-radius:11px; cursor:pointer; white-space:nowrap; min-height:48px;
+  }
   .pocbox button:hover{background:#1f6feb}
-  .pocbox .err{background:rgba(248,81,73,.18);border:1px solid rgba(248,81,73,.5);color:#ffb4ae;padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:.9em}
-  @media(max-width:520px){.pocbox form{flex-direction:column}}
-  a.btn{display:inline-block;margin-top:22px;padding:14px 30px;background:#2f81f7;color:#fff;border-radius:12px;text-decoration:none;font-weight:600}
+  .pocbox .err{background:rgba(248,81,73,.12); border:1px solid rgba(248,81,73,.45); color:#ffb4ae; padding:11px 15px; border-radius:10px; margin-bottom:14px; font-size:.9em}
+  .cta{text-align:center; margin-top:34px}
+  a.btn{
+    display:inline-block; padding:15px 36px; background:var(--accent); color:#fff; border-radius:12px;
+    text-decoration:none; font-weight:700; min-height:48px;
+  }
   a.btn:hover{background:#1f6feb}
-  .cta{text-align:center}
+  footer{border-top:1px solid var(--line); padding:24px 28px; text-align:center; color:var(--faint); font-size:.85em}
+  footer a{color:var(--muted); text-decoration:none}
+  footer a:hover{color:var(--text)}
+  @media(max-width:620px){
+    .hero{flex-direction:column; text-align:center; gap:22px; padding:28px 22px}
+    .stats{justify-content:center}
+    .card .frow{grid-template-columns:1fr; gap:4px}
+    .pocbox form{flex-direction:column}
+    .pocbox button{width:100%}
+    .topbar{padding:14px 18px}
+    .scanned{display:none}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <a class="back" href="/">&larr; Scan another site</a>
-  <h1>Report for {{ r.url }}</h1>
-  <p class="meta">Scanned {{ r.scanned_at }}</p>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="SiteGuard home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+      <b>Site<span>Guard</span></b>
+    </a>
+    <span class="scanned">scanned {{ r.scanned_at }}</span>
+  </header>
 
-  <div class="hero">
-    <div class="badge">{{ r.grade }}</div>
-    <div class="score-line"><b>{{ r.score }}</b> / 100</div>
-    {% if not r.findings %}
-      <p class="verdict">Looking good &mdash; your site passed every check.</p>
-    {% elif r.findings|length == 1 %}
-      <p class="verdict">We found <b>1 thing</b> worth a look:</p>
-    {% else %}
-      <p class="verdict">We found <b>{{ r.findings|length }} things</b> worth a look:</p>
-    {% endif %}
-    {% set np = r.checks|selectattr('status','equalto','passed')|list|length %}
-    {% set nf = r.checks|selectattr('status','equalto','failed')|list|length %}
-    <p class="tally"><b class="p">{{ np }} passed</b> &middot; <b class="f">{{ nf }} need attention</b> &middot; {{ r.checks|length }} checks total</p>
-  </div>
+  <main>
+    <a class="back" href="/">&larr; New scan</a>
+    <p class="target-label">Security report</p>
+    <h1><span class="host">{{ r.url }}</span></h1>
 
-  {% if not r.findings %}
-    <div class="allclear">&#127881; Nothing to fix &mdash; nice work keeping your site safe.</div>
-  {% else %}
-    {% for f in r.findings %}
-    <div class="card sev-{{ f.severity }}">
-      <span class="pill" style="background:{{ sev_color[f.severity] }}">{{ sev_label[f.severity] }}</span>
-      <h3>{{ f.title }}</h3>
-      <p><span class="lbl">What it means:</span> {{ f.what_it_means }}</p>
-      <p><span class="lbl">How to fix:</span> {{ f.how_to_fix }}</p>
+    <div class="hero">
+      <div class="ring" role="img" aria-label="Score {{ r.score }} out of 100, grade {{ r.grade }}">
+        <svg width="148" height="148" viewBox="0 0 148 148">
+          <circle cx="74" cy="74" r="62" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="11"/>
+          <circle cx="74" cy="74" r="62" fill="none" stroke="{{ grade_color }}" stroke-width="11"
+                  stroke-linecap="round"
+                  stroke-dasharray="389.6"
+                  stroke-dashoffset="{{ '%.1f' % (389.6 * (1 - r.score / 100)) }}"/>
+        </svg>
+        <div class="g" style="color:{{ grade_color }}">{{ r.grade }}</div>
+      </div>
+      <div class="hero-body">
+        <p class="score-line"><b>{{ r.score }}</b> / 100</p>
+        {% if not r.findings %}
+          <p class="verdict">Looking good &mdash; this site passed every check.</p>
+        {% elif r.findings|length == 1 %}
+          <p class="verdict"><b>1 issue</b> found &mdash; details and fixes below.</p>
+        {% else %}
+          <p class="verdict"><b>{{ r.findings|length }} issues</b> found &mdash; details and fixes below.</p>
+        {% endif %}
+        {% set np = r.checks|selectattr('status','equalto','passed')|list|length %}
+        {% set nf = r.checks|selectattr('status','equalto','failed')|list|length %}
+        <div class="stats">
+          <div class="stat ok"><span class="n">{{ np }}</span><span class="l">Passed</span></div>
+          <div class="stat warn"><span class="n">{{ nf }}</span><span class="l">Need attention</span></div>
+          <div class="stat all"><span class="n">{{ r.checks|length }}</span><span class="l">Checks total</span></div>
+        </div>
+      </div>
     </div>
-    {% endfor %}
-  {% endif %}
 
-  <details class="checks">
-    <summary>See all {{ r.checks|length }} checks</summary>
-    <ul>
-    {% for c in r.checks %}
-      <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}✓{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}–{% endif %}</span>{{ c.name }}</li>
-    {% endfor %}
-    </ul>
-  </details>
+    {% if not r.findings %}
+      <div class="allclear"><b>Nothing to fix.</b><br>Nice work keeping this site safe &mdash; every check passed.</div>
+    {% else %}
+      <p class="sec-label">Findings &mdash; what to fix first</p>
+      {% for f in r.findings %}
+      <div class="card sev-{{ f.severity }}">
+        <div class="row1">
+          <span class="pill" style="background:{{ sev_color[f.severity] }}">{{ sev_label[f.severity] }}</span>
+          <h3>{{ f.title }}</h3>
+        </div>
+        <div class="frow"><span class="fl">What it means</span><p class="fv">{{ f.what_it_means }}</p></div>
+        <div class="frow"><span class="fl">How to fix</span><p class="fv">{{ f.how_to_fix }}</p></div>
+      </div>
+      {% endfor %}
+    {% endif %}
 
-  {% if r.findings %}
-  <div class="pocbox">
-    <h2>Need a Proof of Concept?</h2>
-    <p>Get a detailed PoC report of these findings with your name on it — free, generated instantly, no AI involved.</p>
-    {% if poc_error %}<div class="err">{{ poc_error }}</div>{% endif %}
-    <form action="/poc" method="post">
-      <input type="hidden" name="payload" value="{{ poc_payload }}">
-      <input name="name" placeholder="Your name" maxlength="80" autocomplete="name">
-      <button type="submit">Generate PoC</button>
-    </form>
-  </div>
-  {% endif %}
+    <p class="sec-label">All checks</p>
+    <details class="checks">
+      <summary><span>See all {{ r.checks|length }} checks</span><span class="chev">&#9662;</span></summary>
+      <ul>
+      {% for c in r.checks %}
+        <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}</li>
+      {% endfor %}
+      </ul>
+    </details>
 
-  <div class="cta"><a class="btn" href="/">Scan another site</a></div>
-</div>
+    {% if r.findings %}
+    <div class="pocbox">
+      <h2>Need a Proof of Concept?</h2>
+      <p>Get a detailed PoC report of these findings with your name on it &mdash; free, generated instantly, no AI involved.</p>
+      {% if poc_error %}<div class="err">{{ poc_error }}</div>{% endif %}
+      <form action="/poc" method="post">
+        <input type="hidden" name="payload" value="{{ poc_payload }}">
+        <input name="name" placeholder="Your name" maxlength="80" autocomplete="name" aria-label="Your name">
+        <button type="submit">Generate PoC</button>
+      </form>
+    </div>
+    {% endif %}
+
+    <div class="cta"><a class="btn" href="/">Scan another site</a></div>
+  </main>
+
+  <footer><a href="https://github.com/xorudra/siteguard">github.com/xorudra/siteguard</a> &middot; Free &middot; No signup</footer>
 </body>
 </html>
