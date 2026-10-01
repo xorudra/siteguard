@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SiteGuard — Website security scanner</title>
-<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 11 public security checks.">
+<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 23 public security checks.">
 <style>
   :root{
     --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
@@ -147,7 +147,7 @@
   <main>
     <p class="kicker">Website security scanner</p>
     <h1>Is your website <span class="u">actually</span> secure?</h1>
-    <p class="lede">Paste any website address. SiteGuard runs <b>11 security checks</b> against
+    <p class="lede">Paste any website address. SiteGuard runs <b>23 security checks</b> against
       the public things an attacker can see &mdash; headers, certificates, exposed files &mdash;
       and shows you exactly what to fix.</p>
 
@@ -169,13 +169,13 @@
       </div>
       <div class="spin" id="spin">
         <div class="bar"><i></i></div>
-        <p>$ siteguard scan --target &hellip; probing 11 checks, about 30 seconds</p>
+        <p>$ siteguard scan --target &hellip; probing 23 checks, about 30 seconds</p>
       </div>
     </div>
 
     <section class="checks">
       <p class="clabel">Coverage</p>
-      <h2>11 checks in every scan</h2>
+      <h2>23 checks in every scan</h2>
       <p class="csub">Each scan probes the headers, transport security, and exposed files of your
         site. New checks are added over time &mdash; this list keeps growing.</p>
       <div class="grid">
@@ -190,6 +190,18 @@
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div><span>Exposed .git</span><small>Repo not public</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6"/></svg><div><span>Exposed .env</span><small>Secrets not leaked</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><div><span>WordPress login</span><small>Admin not exposed</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div><span>nosniff</span><small>File-type guessing blocked</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M17 3l4 4-4 4M21 7H8M7 21l-4-4 4-4M3 17h13"/></svg><div><span>Referrer-Policy</span><small>Link-click leaks controlled</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg><div><span>Permissions-Policy</span><small>Browser features restricted</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="12" rx="2"/><path d="M8 8V6a4 4 0 018 0v2"/></svg><div><span>Cookie flags</span><small>Secure session cookies</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg><div><span>CORS</span><small>Data sharing locked down</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/></svg><div><span>Old TLS disabled</span><small>TLS 1.0/1.1 rejected</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6"/></svg><div><span>security.txt</span><small>Security contact file</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div><span>TRACE disabled</span><small>Risky method off</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg><div><span>Tech headers</span><small>Stack names hidden</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5"/></svg><div><span>COOP / COEP</span><small>Cross-origin isolation</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 2l2.4 5.3 5.3.6-4.2 3.9 1.2 5.6-5-2.9-5 2.9 1.2-5.6L4 7.9l5.6-.6z"/></svg><div><span>HSTS subdomains</span><small>All subdomains covered</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div><span>robots.txt</span><small>No sensitive paths listed</small></div></div>
       </div>
     </section>
   </main>

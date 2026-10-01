@@ -183,6 +183,18 @@ REFERENCES = {
     "git": "CWE-538 File and Directory Information Exposure; https://cwe.mitre.org/data/definitions/538.html",
     "env": "CWE-538 File and Directory Information Exposure; https://cwe.mitre.org/data/definitions/538.html",
     "wp-login": "OWASP WordPress Security Implementation Guideline; https://owasp.org/www-project-wordpress-security-implementation-guideline/",
+    "nosniff-missing": "OWASP Secure Headers Project; https://owasp.org/www-project-secure-headers/",
+    "referrer-policy-insecure": "OWASP Secure Headers Project; https://owasp.org/www-project-secure-headers/",
+    "permissions-policy-missing": "OWASP Secure Headers Project; https://owasp.org/www-project-secure-headers/",
+    "cookie-flags-missing": "OWASP Session Management Cheat Sheet; https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html",
+    "cors-wildcard-credentials": "CWE-942 Permissive Cross-domain Policy with Untrusted Domains; https://cwe.mitre.org/data/definitions/942.html",
+    "tls-old-version": "OWASP Transport Layer Protection Cheat Sheet; https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html",
+    "security-txt-missing": "security.txt — a method for web security policies; https://securitytxt.org/",
+    "http-trace-enabled": "CWE-749 Exposed Dangerous Method or Function; https://cwe.mitre.org/data/definitions/749.html",
+    "tech-version-headers": "CWE-200 Exposure of Sensitive Information; https://cwe.mitre.org/data/definitions/200.html",
+    "cross-origin-policy-missing": "OWASP Secure Headers Project; https://owasp.org/www-project-secure-headers/",
+    "hsts-weak": "OWASP HTTP Strict Transport Security Cheat Sheet; https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html",
+    "robots-disclosure": "CWE-538 File and Directory Information Exposure; https://cwe.mitre.org/data/definitions/538.html",
 }
 
 
