@@ -5,3 +5,9 @@ services:
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      # Stable PoC signing key shared by both gunicorn workers and across
+      # restarts — without it each worker generated its own random key
+      # and signed payloads randomly failed verification (A8).
+      - key: SECRET_KEY
+        generateValue: true

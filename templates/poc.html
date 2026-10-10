@@ -80,10 +80,14 @@
   .toolbar .back{background:#e8ecf1; color:#3a4553}
   .toolbar .back:hover{background:#dbe1e9}
   .disclaimer{margin:30px 0 0; font-size:.82em; color:var(--faint); line-height:1.65; border-top:1px solid var(--line); padding-top:20px}
+  .legal-links{margin:14px 0 0; font-size:.82em; color:var(--faint)}
+  .legal-links a{color:var(--muted); text-decoration:none}
+  .legal-links a:hover{color:var(--ink)}
   @media print{
     /* Plain-text document: no dark UI, no invisible white-on-dark text. */
     body{background:#fff; padding:0; color:#111}
     .toolbar{display:none}
+    .legal-links{display:none}
     .wrap{max-width:none}
     .sheet{box-shadow:none; border-radius:0}
     .cover{background:#fff !important; color:#111; padding:0 0 14px; border-bottom:3px solid #111; border-radius:0}
@@ -206,6 +210,7 @@
       </div>
 
       <p class="disclaimer">This Proof of Concept was generated from an automated, non-intrusive scan of publicly visible information only. It is provided for authorized security testing and remediation purposes. Do not use these techniques against systems you do not own or have explicit permission to test.</p>
+      <p class="legal-links"><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="https://github.com/xorudra/siteguard">GitHub</a></p>
     </div>
   </div>
 </div>

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SiteGuard — {{ "Privacy Policy" if page == "privacy" else "Terms of Use" }}</title>
+<meta name="description" content="{{ "How SiteGuard handles your data: scans run in memory, nothing is stored." if page == "privacy" else "The rules for using SiteGuard: only scan sites you own or have permission to test." }}">
+<style>
+  :root{
+    --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
+    /* #8794a9 on --bg #0a0d12 is 6.3:1 contrast (WCAG AA needs 4.5:1) */
+    --text:#e9eef5; --muted:#98a4b6; --faint:#8794a9;
+    --accent:#2f81f7; --accent-hi:#4da3ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; font-family:var(--sans); color:var(--text); background:var(--bg);
+    min-height:100vh; display:flex; flex-direction:column;
+    background-image:
+      linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size:44px 44px;
+  }
+  /* ---- top bar ---- */
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; border-bottom:1px solid var(--line);
+    background:rgba(10,13,18,.82); backdrop-filter:blur(8px);
+    position:sticky; top:0; z-index:10;
+  }
+  .brand{display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--text)}
+  .brand svg{width:30px; height:30px; display:block}
+  .brand b{font-size:1.12em; letter-spacing:.4px; font-weight:700}
+  .brand b span{color:var(--accent-hi)}
+  .topbar nav a{
+    color:var(--muted); text-decoration:none; font-size:.92em; font-weight:500;
+    border:1px solid var(--line); border-radius:9px; padding:9px 16px; display:inline-block;
+  }
+  .topbar nav a:hover{color:var(--text); border-color:rgba(255,255,255,.22)}
+  /* ---- main ---- */
+  main{flex:1; width:100%; max-width:880px; margin:0 auto; padding:72px 24px 40px}
+  .kicker{
+    font-family:var(--mono); font-size:.78em; letter-spacing:3px; color:var(--accent-hi);
+    text-transform:uppercase; margin:0 0 18px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .kicker::after{content:""; height:1px; width:72px; background:var(--line)}
+  h1{
+    margin:0 0 16px; font-size:clamp(2.1em, 5.4vw, 3.3em); line-height:1.08;
+    letter-spacing:-1.2px; font-weight:750;
+  }
+  .lede{margin:0 0 34px; font-size:1.12em; line-height:1.65; color:var(--muted); max-width:62ch}
+  .doc{max-width:68ch}
+  .doc h2{font-size:1.18em; margin:34px 0 10px; letter-spacing:-.2px}
+  .doc p, .doc li{line-height:1.7; color:var(--muted)}
+  .doc p{margin:0 0 14px}
+  .doc ul{margin:0 0 14px; padding-left:22px}
+  .doc li{margin-bottom:6px}
+  .doc b{color:var(--text); font-weight:600}
+  .doc a{color:var(--accent-hi)}
+  /* ---- footer ---- */
+  footer{
+    border-top:1px solid var(--line); padding:26px 28px 30px; margin-top:20px;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    color:var(--faint); font-size:.86em; text-align:center;
+  }
+  footer .fline{display:flex; align-items:center; gap:8px}
+  footer .dotsep{opacity:.5}
+  footer a{color:var(--muted); text-decoration:none}
+  footer a:hover{color:var(--text)}
+  @media(max-width:520px){
+    .topbar{padding:14px 18px}
+    main{padding-top:48px}
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="SiteGuard home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+      <b>Site<span>Guard</span></b>
+    </a>
+    <nav><a href="https://github.com/xorudra/siteguard">GitHub</a></nav>
+  </header>
+
+  <main>
+    {% if page == "privacy" %}
+    <p class="kicker">Privacy</p>
+    <h1>Privacy Policy</h1>
+    <p class="lede">SiteGuard is built to forget. Scans run in memory on our
+    server and <b>nothing about them is stored</b> — no database, no scan
+    history, no account. This page says exactly what that means.</p>
+
+    <div class="doc">
+      <h2>What happens when you scan a site</h2>
+      <p>You type a website address. Our server fetches that site, runs the
+      checks, and shows you a report. The report exists only in that response
+      and in your browser. When you close the page, it's gone — we keep no
+      copy of the report, the findings, or the address you scanned.</p>
+
+      <h2>Your IP address</h2>
+      <p>To keep the free service fair (10 scans per hour), we hold your IP
+      address <b>in memory only</b>, just long enough to count requests
+      inside that hour. It is not written to a database, not used for
+      tracking or advertising, and disappears when the counting window
+      passes or the server restarts.</p>
+
+      <h2>The name on a PoC report</h2>
+      <p>If you generate a Proof of Concept report, you can type your name
+      so it appears on the document. That name — and the report itself —
+      travels inside a <b>tamper-proof signed token carried by your own
+      browser</b>, never in storage on our server. We cannot read, list, or
+      retrieve past reports.</p>
+
+      <h2>Cookies and tracking</h2>
+      <p>SiteGuard sets <b>no cookies</b> and runs no analytics, advertising,
+      or tracking scripts. There is nothing to consent to because there is
+      nothing collecting.</p>
+
+      <h2>The sites you scan</h2>
+      <p>Scans are fetched from our server, so a scanned site sees our
+      server's address — not yours. What a scanned site does with its own
+      server logs is up to that site.</p>
+
+      <h2>Changes and questions</h2>
+      <p>If this policy ever changes, the new version will be posted on this
+      page. Questions or concerns: reach us through the
+      <a href="https://github.com/xorudra/siteguard">GitHub project</a>.</p>
+    </div>
+    {% else %}
+    <p class="kicker">Terms</p>
+    <h1>Terms of Use</h1>
+    <p class="lede">Short version: <b>only scan websites you own or have
+    permission to test</b>, and treat the report as a helpful automated
+    check — not a guarantee.</p>
+
+    <div class="doc">
+      <h2>Only scan with permission</h2>
+      <p>You may only use SiteGuard against websites you own, or whose owner
+      has given you permission to test. The VAPT checks actively probe the
+      target site. Testing someone else's site without permission can be
+      illegal where you live — <b>you are responsible for every address you
+      submit</b>.</p>
+
+      <h2>What the report is</h2>
+      <p>SiteGuard is an automated, non-intrusive check of publicly visible
+      information. It is provided <b>"as is", with no warranty</b>. A clean
+      report does not mean a site is safe — the scanner can miss problems,
+      and it can occasionally flag something that turns out to be fine. It
+      is not a substitute for a professional security assessment.</p>
+
+      <h2>Fair use</h2>
+      <p>Scans are limited to 10 per hour so the free service stays usable
+      for everyone. Don't try to disrupt SiteGuard or any scanned site, and
+      don't use reports to misrepresent a site you don't control.</p>
+
+      <h2>Liability</h2>
+      <p>To the extent the law allows, we are not liable for decisions made
+      or losses suffered based on a SiteGuard report. Checking and securing
+      your website remains your responsibility.</p>
+
+      <h2>Changes</h2>
+      <p>These terms may be updated; the current version always lives on
+      this page. Continuing to use SiteGuard after a change means you accept
+      the updated terms.</p>
+    </div>
+    {% endif %}
+  </main>
+
+  <footer>
+    <div class="fline"><span>SiteGuard</span><span class="dotsep">&middot;</span><span>Free</span><span class="dotsep">&middot;</span><span>No signup</span><span class="dotsep">&middot;</span><span>10 scans/hour</span></div>
+    <div class="fline"><a href="https://github.com/xorudra/siteguard">github.com/xorudra/siteguard</a><span class="dotsep">&middot;</span><a href="/privacy">Privacy</a><span class="dotsep">&middot;</span><a href="/terms">Terms</a></div>
+  </footer>
+</body>
+</html>

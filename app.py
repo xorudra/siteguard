@@ -4,6 +4,7 @@ import os
 import secrets
 import sys
 import time
+from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -487,6 +488,53 @@ def _rate_ok(ip):
     return True
 
 
+def _client_ip():
+    """Rate-limit identity: the LAST X-Forwarded-For hop — the address
+    the platform edge (Render) actually observed. Earlier hops are
+    client-supplied and spoofable: keying on the first hop used to let
+    anyone rotate a fake address and scan without limit. Falls back to
+    remote_addr when no XFF header is present."""
+    hops = [h.strip() for h in
+            request.headers.get("X-Forwarded-For", "").split(",")
+            if h.strip()]
+    if hops:
+        return hops[-1]
+    return request.remote_addr or "?"
+
+
+def _origin_ok():
+    """CSRF guard for form posts (Launch Safety Standard A2): when a
+    browser sends an Origin (or Referer) header, it must name THIS
+    host. Non-browser clients send neither and pass — the check only
+    stops cross-site browser form submissions."""
+    origin = (request.headers.get("Origin")
+              or request.headers.get("Referer"))
+    if not origin:
+        return True
+    return urlparse(origin).netloc == request.host
+
+
+@app.before_request
+def _csrf_guard():
+    if request.method == "POST" and not _origin_ok():
+        return render_template(
+            "index.html",
+            error="That request didn't come from this site — please "
+                  "start again from the homepage."), 403
+    return None
+
+
+def _rate_or_429():
+    """Shared limiter gate for the POST routes. Returns a 429 response
+    when the caller is over the limit, else None."""
+    if _rate_ok(_client_ip()):
+        return None
+    return render_template(
+        "index.html",
+        error="Too many scans from you lately — please wait a bit "
+              "and try again."), 429
+
+
 @app.after_request
 def _security_headers(resp):
     resp.headers["X-Content-Type-Options"] = "nosniff"
@@ -514,14 +562,21 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/privacy", methods=["GET"])
+def privacy():
+    return render_template("legal.html", page="privacy")
+
+
+@app.route("/terms", methods=["GET"])
+def terms():
+    return render_template("legal.html", page="terms")
+
+
 @app.route("/scan", methods=["POST"])
 def do_scan():
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "?")
-    ip = ip.split(",")[0].strip()
-    if not _rate_ok(ip):
-        return render_template(
-            "index.html",
-            error="Too many scans from you lately — please wait a bit and try again."), 429
+    limited = _rate_or_429()
+    if limited is not None:
+        return limited
 
     url = (request.form.get("url") or "").strip()
     if not url:
@@ -575,12 +630,9 @@ def do_vapt():
     Requires the consent checkbox — only scan sites you own or have
     permission to test. Same rate limit and SSRF guard as passive scans.
     """
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr or "?")
-    ip = ip.split(",")[0].strip()
-    if not _rate_ok(ip):
-        return render_template(
-            "index.html",
-            error="Too many scans from you lately — please wait a bit and try again."), 429
+    limited = _rate_or_429()
+    if limited is not None:
+        return limited
 
     url = (request.form.get("url") or "").strip()
     if not url:
@@ -617,6 +669,9 @@ def do_vapt():
 
 @app.route("/poc", methods=["POST"])
 def make_poc():
+    limited = _rate_or_429()
+    if limited is not None:
+        return limited
     name = (request.form.get("name") or "").strip()[:80]
     report = _load_report(request.form.get("payload", ""))
 
@@ -649,6 +704,9 @@ def make_poc():
 @app.route("/poc/pdf", methods=["POST"])
 def poc_pdf():
     """Downloadable PoC PDF generated server-side with no embedded fonts."""
+    limited = _rate_or_429()
+    if limited is not None:
+        return limited
     if not _HAVE_FPDF:
         return "PDF download is temporarily unavailable.", 503
     name = (request.form.get("name") or "").strip()[:80]
