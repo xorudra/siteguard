@@ -72,7 +72,7 @@ def run_scan(homepage_html, exact=None, substrings=None):
 
     with patch.object(scanner, "_check_url", fake_check_url), \
          patch.object(scanner, "_get", fake_get), \
-         patch.object(scanner.requests, "request",
+         patch.object(scanner, "_request",
                       side_effect=ConnectionError("offline")):
         return scanner.scan(HOST)
 

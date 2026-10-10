@@ -117,7 +117,7 @@ def run_scan(base_headers=None, set_cookies=GOOD_COOKIES,
     with patch.object(scanner, "_check_url", lambda url: url), \
          patch.object(scanner, "_get", side_effect=router), \
          patch.object(scanner, "_safe_get", side_effect=router), \
-         patch.object(scanner.requests, "request",
+         patch.object(scanner, "_request",
                       return_value=FakeResponse(trace_status)), \
          patch.object(scanner.socket, "create_connection", fake_create), \
          patch.object(scanner.ssl, "SSLContext", fake_ssl_ctx_cls), \
@@ -354,7 +354,7 @@ class NewChecksTest(unittest.TestCase):
         with patch.object(vapt, "_check_url", lambda url: url), \
              patch.object(vapt, "_safe_get",
                           side_effect=ConnectionError("mocked down")), \
-             patch.object(vapt.requests, "options",
+             patch.object(vapt, "_request",
                           side_effect=ConnectionError("mocked down")):
             r = vapt.vapt_scan("example.test")
         rows = {x["id"]: x for x in owasp_coverage(r)}

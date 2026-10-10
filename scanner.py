@@ -6,6 +6,7 @@ a simple explanation: what it means and how to fix it.
 Only scans the domain the user asked for. HTTP-level checks only.
 """
 import base64
+import http.client
 import ipaddress
 import json
 import re
@@ -19,6 +20,10 @@ import requests
 TIMEOUT = 10
 UA = {"User-Agent": "SiteGuard/1.0 (security check; contact: hello@siteguard)"}
 MAX_REDIRECTS = 5
+# Hard cap on any downloaded body (Launch Safety Standard C21): a hostile
+# target can serve an endless page; the checks never need more than this
+# (script analysis already truncates at 1M chars).
+MAX_BODY_BYTES = 5 * 1024 * 1024
 
 DEDUCT = {"high": 25, "medium": 15, "low": 5, "info": 0}
 
@@ -32,28 +37,52 @@ class UnsafeTarget(ValueError):
     """Raised when a scan target is not a public website."""
 
 
-def _is_public_host(host):
-    """True only if the host resolves exclusively to public IPs.
+def _resolve_public(host):
+    """Resolve a host ONCE and return its IPs — only if EVERY resolved
+    address is a public (global) IP.
 
     Blocks private networks, loopback, link-local (incl. cloud metadata
     169.254.169.254), and other non-routable addresses — SSRF guard.
+    Raises UnsafeTarget for anything that is not a public website.
     """
     if not host or len(host) > 253:
-        return False
+        raise UnsafeTarget(
+            "That address isn't a public website — only real, public "
+            "sites can be scanned.")
     try:
-        infos = socket.getaddrinfo(host, 443)
-    except socket.gaierror:
-        return False
-    if not infos:
-        return False
-    for info in infos:
+        infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+    except (socket.gaierror, UnicodeError):
+        raise UnsafeTarget(
+            "That address isn't a public website — only real, public "
+            "sites can be scanned.")
+    ips = []
+    for info in infos or []:
         try:
             ip = ipaddress.ip_address(info[4][0])
         except ValueError:
-            return False
+            raise UnsafeTarget(
+                "That address isn't a public website — only real, public "
+                "sites can be scanned.")
         if not ip.is_global:
-            return False
-    return True
+            raise UnsafeTarget(
+                "That address isn't a public website — only real, public "
+                "sites can be scanned.")
+        if ip not in ips:
+            ips.append(ip)
+    if not ips:
+        raise UnsafeTarget(
+            "That address isn't a public website — only real, public "
+            "sites can be scanned.")
+    return ips
+
+
+def _is_public_host(host):
+    """True only if the host resolves exclusively to public IPs."""
+    try:
+        _resolve_public(host)
+        return True
+    except UnsafeTarget:
+        return False
 
 
 def _check_url(url):
@@ -69,19 +98,175 @@ def _check_url(url):
     return url
 
 
-def _safe_get(url, max_redirects=MAX_REDIRECTS, follow=True, headers=None):
-    """GET with optional manual redirect-following; every hop is re-validated.
+class _CaseInsensitiveHeaders:
+    """Minimal case-insensitive header mapping with the requests
+    semantics the checks rely on: .get() returns the last value,
+    .getlist() returns every value (Set-Cookie), .items() lists pairs."""
 
-    requests' automatic redirect-following would let a hostile site bounce
-    us onto an internal address, so we follow redirects ourselves.
+    def __init__(self, pairs=()):
+        self._pairs = [(str(k), str(v)) for k, v in pairs]
+
+    def get(self, name, default=None):
+        lname = name.lower()
+        for k, v in reversed(self._pairs):
+            if k.lower() == lname:
+                return v
+        return default
+
+    def getlist(self, name):
+        lname = name.lower()
+        return [v for k, v in self._pairs if k.lower() == lname]
+
+    def __contains__(self, name):
+        return self.get(name) is not None
+
+    def __getitem__(self, name):
+        value = self.get(name)
+        if value is None:
+            raise KeyError(name)
+        return value
+
+    def items(self):
+        return list(self._pairs)
+
+    def __repr__(self):
+        return repr(dict(self._pairs))
+
+
+class _RawShim:
+    """Stands in for requests' .raw — the checks only use
+    .raw.headers.getlist('Set-Cookie')."""
+
+    def __init__(self, headers):
+        self.headers = headers
+
+
+class _PinnedResponse:
+    """Thin stand-in for a requests.Response, exposing exactly what the
+    checks use: status_code, headers, text, content, url (and .raw)."""
+
+    def __init__(self, status_code, headers, body, url):
+        self.status_code = status_code
+        self.headers = headers
+        self.content = body
+        self.url = url
+        self.raw = _RawShim(headers)
+
+    @property
+    def text(self):
+        return self.content.decode("utf-8", "replace")
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """HTTP connection that dials a pre-validated IP — never DNS."""
+
+    def __init__(self, *args, _sg_ip=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._sg_ip = _sg_ip
+
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self._sg_ip, self.port), self.timeout, self.source_address)
+        self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if self._tunnel_host:
+            self._tunnel()
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS variant: TCP goes to the validated IP, while TLS SNI and
+    certificate hostname verification keep the original hostname."""
+
+    def __init__(self, *args, _sg_ip=None, _sg_sni=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._sg_ip = _sg_ip
+        self._sg_sni = _sg_sni
+
+    def connect(self):
+        raw = socket.create_connection(
+            (self._sg_ip, self.port), self.timeout, self.source_address)
+        raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if self._tunnel_host:
+            self.sock = raw
+            self._tunnel()
+            raw = self.sock
+        context = self._context or ssl.create_default_context()
+        self.sock = context.wrap_socket(raw, server_hostname=self._sg_sni)
+
+
+def _pinned_once(method, url, headers=None):
+    """One HTTP request with the connection PINNED to a validated IP
+    (resolve-validate-pin, Launch Safety Standard A5).
+
+    The host is resolved exactly once here, every resolved address must
+    be global, and the socket connects to one of those very addresses —
+    there is no second DNS lookup at connect time for a rebinding
+    attacker to poison. The Host header and TLS SNI keep the original
+    hostname. The body is read under the MAX_BODY_BYTES hard cap (C21).
+    """
+    parts = urlparse(url)
+    if parts.scheme not in ("http", "https"):
+        raise UnsafeTarget("Only http:// and https:// addresses can be scanned.")
+    host = parts.hostname
+    ips = _resolve_public(host)
+    try:
+        port = parts.port
+    except ValueError:
+        port = None
+    default_port = 443 if parts.scheme == "https" else 80
+    host_header = host if port in (None, default_port) else f"{host}:{port}"
+    hdrs = {"Host": host_header, "Connection": "close"}
+    if headers:
+        hdrs.update(headers)
+    path = parts.path or "/"
+    if parts.query:
+        path += "?" + parts.query
+    ip = str(ips[0])
+    if parts.scheme == "https":
+        conn = _PinnedHTTPSConnection(host, port or default_port,
+                                      timeout=TIMEOUT,
+                                      _sg_ip=ip, _sg_sni=host)
+    else:
+        conn = _PinnedHTTPConnection(host, port or default_port,
+                                     timeout=TIMEOUT, _sg_ip=ip)
+    try:
+        conn.request(method, path, headers=hdrs)
+        resp = conn.getresponse()
+        body = b""
+        while len(body) < MAX_BODY_BYTES:
+            chunk = resp.read(min(65536, MAX_BODY_BYTES - len(body)))
+            if not chunk:
+                break
+            body += chunk
+        return _PinnedResponse(resp.status,
+                               _CaseInsensitiveHeaders(resp.getheaders()),
+                               body, url)
+    finally:
+        conn.close()
+
+
+def _request(method, url, headers=None):
+    """A single pinned request with no redirect following (TRACE and
+    OPTIONS probes). Validation happens inside _pinned_once."""
+    hdrs = dict(UA)
+    if headers:
+        hdrs.update(headers)
+    return _pinned_once(method, url, hdrs)
+
+
+def _safe_get(url, max_redirects=MAX_REDIRECTS, follow=True, headers=None):
+    """GET with optional manual redirect-following; every hop is
+    re-validated and pinned.
+
+    Automatic redirect-following would let a hostile site bounce us onto
+    an internal address, so we follow redirects ourselves; each hop goes
+    through _check_url and gets its own resolve-validate-pin fetch.
     """
     hdrs = dict(UA)
     if headers:
         hdrs.update(headers)
     for _ in range(max_redirects + 1):
         _check_url(url)
-        r = requests.get(url, headers=hdrs, timeout=TIMEOUT,
-                         allow_redirects=False)
+        r = _pinned_once("GET", url, hdrs)
         if not follow:
             return r
         if r.status_code in (301, 302, 303, 307, 308):
@@ -464,9 +649,7 @@ def scan(raw_url):
 
     # 19. HTTP TRACE method enabled
     try:
-        _check_url(f"https://{host}/")
-        _r = requests.request("TRACE", f"https://{host}/", headers=UA,
-                              timeout=TIMEOUT, allow_redirects=False)
+        _r = _request("TRACE", f"https://{host}/", headers=UA)
         if _r.status_code in (200, 204):
             _record("Risky TRACE method disabled", "failed")
             findings.append(_finding(

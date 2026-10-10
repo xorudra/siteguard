@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Mocked tests for SiteGuard's 3 new VAPT active tests (vapt.py).
 
-No real network: vapt._check_url, vapt._safe_get and vapt.requests.get
-are all faked, so every pass/fail/skipped branch runs deterministically.
+No real network: vapt._check_url, vapt._safe_get and vapt._request (the
+pinned host-header probe) are all faked, so every pass/fail/skipped
+branch runs deterministically.
 """
 import unittest
 from unittest.mock import patch
@@ -33,7 +34,10 @@ def run_vapt(safe_get_hook, requests_get_hook=None):
         patch.object(vapt, "_safe_get", fake_safe_get),
     ]
     if requests_get_hook is not None:
-        patches.append(patch.object(vapt.requests, "get", requests_get_hook))
+        def _request_adapter(method, url, headers=None, **k):
+            assert method == "GET"
+            return requests_get_hook(url, headers=headers)
+        patches.append(patch.object(vapt, "_request", _request_adapter))
     for p in patches:
         p.start()
     try:

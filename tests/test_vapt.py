@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Mocked tests for SiteGuard's VAPT mode (vapt.py) — 6 active checks.
 
-No real network: vapt._check_url, vapt._safe_get and requests.options are
-all faked, so every pass/fail/skipped branch runs deterministically.
+No real network: vapt._check_url, vapt._safe_get and vapt._request (the
+pinned OPTIONS / host-header probes) are all faked, so every
+pass/fail/skipped branch runs deterministically.
 """
 import unittest
 from unittest.mock import patch
@@ -66,13 +67,14 @@ def run_vapt(reflect=False, sql_error=False, open_redirect=False,
                 if verbose_404 else "<html>not found</html>")
         return FakeResponse(404)
 
-    def fake_options(url, **k):
+    def fake_options(method, url, headers=None, **k):
+        assert method == "OPTIONS"
         fake_check_url(url)
         return FakeResponse(200, {"Allow": allow_header})
 
     with patch.object(vapt, "_check_url", side_effect=fake_check_url), \
          patch.object(vapt, "_safe_get", side_effect=router), \
-         patch.object(vapt.requests, "options", side_effect=fake_options):
+         patch.object(vapt, "_request", side_effect=fake_options):
         return vapt.vapt_scan(HOST)
 
 
@@ -168,7 +170,7 @@ class VaptTest(unittest.TestCase):
         self.assertEqual(check_status(result2, NAMES[2]), "skipped")
 
     def test_options_uses_ssrf_guard(self):
-        # requests.options must go through _check_url first
+        # the OPTIONS probe must go through _check_url first
         with self.assertRaises(UnsafeTarget):
             run_vapt(check_raises=True)
 

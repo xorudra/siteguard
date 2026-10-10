@@ -15,15 +15,13 @@ import re
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
-import requests
-
 from scanner import (
     DEDUCT,
-    TIMEOUT,
     UA,
     UnsafeTarget,  # noqa: F401  (re-exported so app.py can catch it)
     _check_url,
     _finding,
+    _request,
     _safe_get,
 )
 
@@ -209,7 +207,7 @@ def vapt_scan(raw_url):
     # 5. Dangerous HTTP methods enabled (OPTIONS probe).
     try:
         _check_url(base + "/")
-        r = requests.options(base + "/", headers=UA, timeout=TIMEOUT)
+        r = _request("OPTIONS", base + "/", headers=UA)
         allow = {k.lower(): v for k, v in r.headers.items()}.get("allow", "")
         dangerous = [m for m in ("PUT", "DELETE", "TRACE")
                      if m in allow.upper()]
@@ -286,9 +284,12 @@ def vapt_scan(raw_url):
         _record("Template injection probe (SSTI)", "skipped")
 
     # 9. Host header injection — does the site trust fake Host headers?
+    #    The pinned transport connects to the validated IP of the REAL
+    #    host (with its real TLS SNI) and only the Host header is forged.
     try:
-        r = requests.get(base + "/", headers={**UA, "Host": "evil-sg-probe.com"},
-                         timeout=TIMEOUT, allow_redirects=False)
+        _check_url(base + "/")
+        r = _request("GET", base + "/",
+                     headers={**UA, "Host": "evil-sg-probe.com"})
         if r.status_code == 200 and "evil-sg-probe.com" in r.text:
             _record("Host header injection", "failed")
             _deduct("low")
