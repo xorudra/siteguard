@@ -908,6 +908,230 @@ def scan(raw_url):
     except Exception:
         _record("Text-message signup asks for consent", "skipped")
 
+    # --- Reel risks, part 2 (2026-10-10): the legal basics. Getting sued
+    # over a vibe-coded app usually starts with missing/copy-paste legal
+    # pages, not with a hacker. Checks 34-39.
+
+    def _fetch_legal(paths, must_mention=None):
+        """First candidate path that answers 200 with a real page wins."""
+        for _p in paths:
+            try:
+                _r = _get(f"https://{host}{_p}")
+            except Exception:
+                continue
+            _text = (_r.text or "")
+            if _r.status_code == 200 and len(_text) > 200:
+                if must_mention and must_mention not in _text.lower():
+                    continue
+                return _text[:200_000]
+        return ""
+
+    _privacy_text = _fetch_legal(
+        ["/privacy", "/privacy-policy", "/privacy.html"], "privacy")
+    _terms_text = _fetch_legal(
+        ["/terms", "/terms-of-service", "/terms.html", "/tos"])
+
+    # 34. Privacy policy page exists
+    if _privacy_text:
+        _record("Privacy policy page exists", "passed")
+    else:
+        _record("Privacy policy page exists", "failed")
+        findings.append(_finding(
+            "medium", "privacy-missing", "No privacy policy page found",
+            "No page at /privacy or /privacy-policy. The moment your "
+            "site collects anything — emails, accounts, analytics — "
+            "privacy laws (GDPR, India's DPDP Act, California's CCPA) "
+            "require you to say what you collect and why. Missing "
+            "legal pages are the most common reason small apps get "
+            "sued or pulled from app stores.",
+            "Add a /privacy page that names what data you collect, "
+            "who you share it with (hosting, payments, analytics, AI "
+            "providers), how long you keep it, and how users can ask "
+            "for deletion. Free attorney-drafted templates exist "
+            "(e.g. the CC0 'legal-templates' repo on GitHub) — but "
+            "fill in every placeholder with YOUR details."))
+
+    # 35. Terms page exists
+    if _terms_text:
+        _record("Terms page exists", "passed")
+    else:
+        _record("Terms page exists", "failed")
+        findings.append(_finding(
+            "medium", "terms-missing", "No terms page found",
+            "No page at /terms or /terms-of-service. Without terms "
+            "you have no agreed rules for accounts, payments or "
+            "acceptable use — and no liability limit standing "
+            "between a user dispute and your own pocket.",
+            "Add a /terms page covering subscriptions and billing "
+            "(if you charge), user content, acceptable use, "
+            "intellectual property, disclaimers, limitation of "
+            "liability, termination and governing law."))
+
+    # 36. Legal pages actually customised + complete — template
+    # placeholders ([Company Name], lorem ipsum, {{...}}) are the
+    # copy-paste tell, and a 3-line terms page protects nobody.
+    _legal_all = (_privacy_text + "\n" + _terms_text)
+    if not _legal_all.strip():
+        _record("Legal pages customised and complete", "skipped")
+    else:
+        _ph = (re.search(r"\[(?:company|insert|your|name|date|address|"
+                         r"email|website)[^\]]*\]", _legal_all, re.I)
+               or re.search(r"lorem ipsum", _legal_all, re.I)
+               or re.search(r"\{\{[^}]+\}\}", _legal_all)
+               or re.search(r"\bXYZ (?:Company|Inc|LLC)\b", _legal_all)
+               or re.search(r"\[COMPANY[^\]]*\]", _legal_all))
+        if _ph:
+            _record("Legal pages customised and complete", "failed")
+            findings.append(_finding(
+                "medium", "legal-placeholder",
+                "Your legal pages still contain template placeholders",
+                "Your privacy/terms pages still say things like "
+                "'[Company Name]' or contain template filler. That "
+                "means the document was copy-pasted and never "
+                "customised — a court (and an app-store reviewer) "
+                "treats it as decoration, not protection.",
+                "Search your legal pages for '[' brackets, '{{ }}' "
+                "markers and filler text, and replace every one with "
+                "your real business name, address and details."))
+        elif _terms_text:
+            _tl = _terms_text.lower()
+            _groups = {
+                "billing/subscriptions": ("billing", "subscription",
+                                          "payment", "price"),
+                "liability limit": ("limitation of liability", "liable",
+                                    "liability"),
+                "termination": ("terminat",),
+                "governing law": ("governing law", "jurisdiction"),
+                "intellectual property": ("intellectual property",),
+            }
+            _missing = [g for g, words in _groups.items()
+                        if not any(w in _tl for w in words)]
+            if len(_missing) >= 3:
+                _record("Legal pages customised and complete", "failed")
+                findings.append(_finding(
+                    "low", "terms-thin",
+                    "Terms page is missing key protections: "
+                    + ", ".join(_missing),
+                    "Your terms page exists but skips the clauses "
+                    "that actually protect you when something goes "
+                    "wrong — billing disputes, liability and how the "
+                    "agreement ends.",
+                    "Add the missing sections. Attorney-drafted free "
+                    "templates (CC0) cover all of them — customise "
+                    "every placeholder to your business."))
+            else:
+                _record("Legal pages customised and complete", "passed")
+        else:
+            _record("Legal pages customised and complete", "passed")
+
+    # 37. Privacy policy says who receives the data — the processors
+    # (hosting, payments, analytics, AI providers). Silence here is
+    # what regulators ask about first.
+    if not _privacy_text:
+        _record("Privacy policy names who receives data", "skipped")
+    else:
+        _pl = _privacy_text.lower()
+        if any(w in _pl for w in ("third part", "service provider",
+                                  "processor", "we share", "shared with",
+                                  "analytics", "advertising partner")):
+            _record("Privacy policy names who receives data", "passed")
+        else:
+            _record("Privacy policy names who receives data", "failed")
+            findings.append(_finding(
+                "info", "privacy-no-processors",
+                "Privacy policy never says who receives user data",
+                "Your privacy policy doesn't mention third parties, "
+                "service providers or processors at all. In reality "
+                "your host, payment provider, analytics and any AI "
+                "APIs you call all receive user data — a policy that "
+                "hides that is worse than one that lists them.",
+                "List every service that receives user data (hosting, "
+                "payments like Stripe, analytics, AI providers) and "
+                "what each receives. If you send user content to AI "
+                "APIs, say so — and whether it's used for training."))
+
+    # 38. Trackers present but no cookie-consent signal — the classic
+    # GDPR/ePrivacy fine starter.
+    try:
+        _trackers = [name for name, pat in (
+            ("Google Analytics", r"googletagmanager\.com|google-analytics"
+             r"|gtag\(|G-[A-Z0-9]{8,}"),
+            ("Meta/Facebook pixel", r"connect\.facebook\.net|fbq\("),
+            ("Hotjar", r"hotjar\.com|hjBootstrap"),
+            ("Microsoft Clarity", r"clarity\.ms"),
+            ("Mixpanel", r"mixpanel\.com"),
+            ("Segment", r"cdn\.segment\.com"),
+        ) if re.search(pat, _src, re.I)]
+        if not _trackers:
+            _record("Cookie consent shown when trackers run", "passed")
+        else:
+            _low_src = _src.lower()
+            _consent_ui = (
+                any(w in _low_src for w in (
+                    "cookiebot", "onetrust", "termly", "cookie-consent",
+                    "cookieconsent", "gdpr-consent", "consent-banner"))
+                or ("cookie" in _low_src
+                    and ("accept" in _low_src or "consent" in _low_src)))
+            if _consent_ui:
+                _record("Cookie consent shown when trackers run",
+                        "passed")
+            else:
+                _record("Cookie consent shown when trackers run",
+                        "failed")
+                findings.append(_finding(
+                    "low", "cookie-consent-missing",
+                    "Tracking runs with no cookie consent: "
+                    + ", ".join(_trackers),
+                    "Your site loads trackers (" + ", ".join(_trackers)
+                    + ") but shows no cookie-consent banner or settings. "
+                    "In the EU/UK that's an ePrivacy/GDPR violation "
+                    "before you've made a single sale — and 'the AI "
+                    "built it that way' is not a defence.",
+                    "Add a cookie-consent banner that blocks trackers "
+                    "until the visitor accepts (free tools: Termly, "
+                    "Cookiebot free tier, or the vanilla-cookieconsent "
+                    "library), and list the trackers in your privacy "
+                    "policy."))
+    except Exception:
+        _record("Cookie consent shown when trackers run", "skipped")
+
+    # 39. Supabase storage buckets left public — the database reel's
+    # other half. Public buckets are sometimes intentional (site
+    # images), so this is info: name them, warn what's at stake.
+    if _sb_urls and _sb_anon:
+        try:
+            _r = _get(f"{_sb_urls[0]}/storage/v1/bucket",
+                      headers={"apikey": _sb_anon,
+                               "Authorization": f"Bearer {_sb_anon}"})
+            _buckets = []
+            if _r.status_code == 200:
+                _data = json.loads(_r.text)
+                if isinstance(_data, list):
+                    _buckets = [str(b.get("name")) for b in _data
+                                if isinstance(b, dict) and b.get("public")]
+            if _buckets:
+                _record("Cloud storage buckets not public", "info")
+                findings.append(_finding(
+                    "info", "supabase-public-bucket",
+                    "Public file-storage buckets: "
+                    + ", ".join(_buckets[:3]),
+                    "These Supabase storage buckets are set to public — "
+                    "anyone with a file's address can open it without "
+                    "logging in. That's fine for site images and "
+                    "avatars; it's a breach waiting to happen for "
+                    "uploads, documents or anything user-specific. "
+                    "This scan lists bucket names only, never files.",
+                    "In Supabase Storage, set buckets that hold user "
+                    "files to private and serve them through signed "
+                    "URLs. Keep public only what you'd happily post "
+                    "on your homepage."))
+            else:
+                _record("Cloud storage buckets not public", "passed")
+        except Exception:
+            _record("Cloud storage buckets not public", "skipped")
+    else:
+        _record("Cloud storage buckets not public", "skipped")
+
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
              if score >= 70 else "D" if score >= 60 else "F")

@@ -195,6 +195,77 @@ POC_DETAILS = {
                     "signals on the page. Backend consent records cannot be "
                     "verified from outside.",
     },
+    "privacy-missing": {
+        "impact": "Collecting any personal data without a privacy policy "
+                  "breaches GDPR / DPDP / CCPA duties and is a standard "
+                  "app-store rejection reason — and the first thing a "
+                  "lawyer's demand letter cites.",
+        "repro": ["Run: curl -sI https://TARGET/privacy and "
+                  "https://TARGET/privacy-policy",
+                  "Both return 404 — no privacy policy exists."],
+        "evidence": "No page at /privacy, /privacy-policy or /privacy.html.",
+    },
+    "terms-missing": {
+        "impact": "No agreed terms means no billing rules, no acceptable-use "
+                  "rules and no limitation of liability between a dispute "
+                  "and the owner's personal assets.",
+        "repro": ["Run: curl -sI https://TARGET/terms and "
+                  "https://TARGET/terms-of-service",
+                  "Both return 404 — no terms page exists."],
+        "evidence": "No page at /terms, /terms-of-service, /terms.html "
+                    "or /tos.",
+    },
+    "legal-placeholder": {
+        "impact": "A legal document naming '[Company Name]' protects a "
+                  "company that doesn't exist. It signals the pages were "
+                  "never reviewed — by the owner or a lawyer.",
+        "repro": ["Open the site's privacy/terms page and search for "
+                  "'[', '{{' or 'lorem ipsum'.",
+                  "Template placeholders are still in the published text."],
+        "evidence": "Placeholder patterns were found in the legal pages.",
+    },
+    "terms-thin": {
+        "impact": "When a payment dispute or abuse case arrives, the "
+                  "missing clauses (billing, liability, termination, "
+                  "governing law) are exactly the ones that decide who "
+                  "pays.",
+        "repro": ["Read https://TARGET/terms and compare against a "
+                  "complete template's section list."],
+        "evidence": "Three or more key clause groups are absent from "
+                    "the terms text.",
+    },
+    "privacy-no-processors": {
+        "impact": "Regulators (and app-store reviewers) ask who receives "
+                  "the data first. A policy that omits processors — "
+                  "especially AI APIs receiving user content — reads as "
+                  "concealment, not simplicity.",
+        "repro": ["Read https://TARGET/privacy and search for 'third', "
+                  "'provider', 'processor', 'share', 'analytics'.",
+                  "None of them appear."],
+        "evidence": "The privacy policy contains no third-party / "
+                    "processor / sharing language.",
+    },
+    "cookie-consent-missing": {
+        "impact": "Loading trackers before consent breaches EU/UK "
+                  "ePrivacy rules; regulators have fined far smaller "
+                  "sites, and ad platforms can restrict accounts over it.",
+        "repro": ["Open https://TARGET with browser dev tools > Network.",
+                  "Tracker requests (analytics/pixel) fire immediately; "
+                  "no consent banner appears first."],
+        "evidence": "Tracker code was found in the page source with no "
+                    "cookie-consent mechanism alongside it.",
+    },
+    "supabase-public-bucket": {
+        "impact": "Public buckets serve files to anyone with the URL — "
+                  "fine for images, a data breach if user uploads or "
+                  "documents ever land in one.",
+        "repro": ["Run: curl 'https://<project>.supabase.co/storage/v1/"
+                  "bucket' -H 'apikey: <public anon key>'",
+                  "One or more buckets are marked public: true."],
+        "evidence": "The storage API listed public buckets using only "
+                    "the site's public anon key. Bucket names only — "
+                    "no files were listed or read.",
+    },
 }
 
 # --- Server-generated PoC PDF: plain text document with NO embedded fonts.
@@ -256,6 +327,13 @@ REFERENCES = {
     "img-alt-missing": "WCAG 2.1 — Non-text Content (1.1.1); https://www.w3.org/WAI/WCAG21/Understanding/non-text-content.html",
     "no-cache-headers": "MDN — HTTP caching & Cache-Control; https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching",
     "sms-consent-risk": "FCC — TCPA rules for text messaging consent; https://www.fcc.gov/consumers/guides/stop-unwanted-robocalls-and-texts",
+    "privacy-missing": "GDPR Art. 13/14 — information to be provided to data subjects; https://gdpr-info.eu/art-13-gdpr/",
+    "terms-missing": "General Legal — CC0 legal templates for startups (GitHub); https://github.com/General-Legal/legal-templates",
+    "legal-placeholder": "General Legal — CC0 legal templates for startups (GitHub); https://github.com/General-Legal/legal-templates",
+    "terms-thin": "General Legal — CC0 legal templates for startups (GitHub); https://github.com/General-Legal/legal-templates",
+    "privacy-no-processors": "GDPR Art. 13/14 — information to be provided to data subjects; https://gdpr-info.eu/art-13-gdpr/",
+    "cookie-consent-missing": "ePrivacy Directive & GDPR consent for cookies/trackers; https://gdpr-info.eu/art-7-gdpr/",
+    "supabase-public-bucket": "Supabase — Storage access control; https://supabase.com/docs/guides/storage/security/access-control",
 }
 
 

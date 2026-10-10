@@ -41,7 +41,7 @@ Push this folder to GitHub, then New -> Web Service on render.com pointing
 at the repo. `render.yaml` sets the build/start commands automatically.
 
 ## How it works
-`scanner.py` runs 33 HTTP-level checks (HTTPS, HSTS, security headers,
+`scanner.py` runs 39 HTTP-level checks (HTTPS, HSTS, security headers,
 certificate expiry, exposed .git/.env, server version leaks, WordPress
 login, cookie flags, CORS, old TLS versions, TRACE method, technology
 headers, security.txt, robots.txt and more) — plus the launch-risk checks
@@ -50,7 +50,18 @@ public-database (RLS) read test using only the site's own public anon key
 (read-only, 1 row per table, values never stored), images missing alt
 text (ADA risk), static files served with no caching headers (bandwidth
 bill risk), and phone-number forms with no visible consent step (TCPA
-risk, info-only). VAPT mode adds 9 active tests on top (42 total). Each finding has a severity (high/medium/low/info) and a
+risk, info-only). VAPT mode adds 9 active tests on top (42 total).
+
+Launch-risk batch 2 (2026-10-10, from a second reel on getting sued over
+a vibe-coded app): privacy policy page exists, terms page exists, legal
+pages customised & complete (template-placeholder detection — `[Company
+Name]`, `{{...}}`, lorem ipsum — plus a terms-completeness check for
+billing/liability/termination/governing-law/IP clauses), privacy policy
+names who receives data (processors, incl. AI providers), cookie consent
+present when trackers run, and Supabase storage buckets not left public
+(bucket names only, never files). Now 39 passive checks, 48 total with
+VAPT. Third-party code licence provenance can't be verified from
+outside a website, so it is deliberately not faked as a check. Each finding has a severity (high/medium/low/info) and a
 simple explanation of what it means and how to fix it. Score starts at 100, deductions per severity.
 
 `app.py` is a small Flask app: form on `/`, report on `/scan`.

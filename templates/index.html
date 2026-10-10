@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SiteGuard — Website security scanner</title>
-<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 33 public security checks.">
+<meta name="description" content="Free website security scanner. Paste a URL and get a graded report on 39 public security checks.">
 <style>
   :root{
     --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
@@ -147,7 +147,7 @@
   <main>
     <p class="kicker">Website security scanner</p>
     <h1>Is your website <span class="u">actually</span> secure?</h1>
-    <p class="lede">Paste any website address. SiteGuard runs <b>33 security checks</b> against
+    <p class="lede">Paste any website address. SiteGuard runs <b>39 security checks</b> against
       the public things an attacker can see &mdash; headers, certificates, exposed files &mdash;
       and shows you exactly what to fix.</p>
 
@@ -169,13 +169,13 @@
       </div>
       <div class="spin" id="spin">
         <div class="bar"><i></i></div>
-        <p>$ siteguard scan --target &hellip; probing 33 checks, about 30 seconds</p>
+        <p>$ siteguard scan --target &hellip; probing 39 checks, about 30 seconds</p>
       </div>
     </div>
 
     <div class="panel" style="margin-top:34px">
       <p class="plabel">VAPT mode &mdash; full scan + active vulnerability tests</p>
-      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Runs the full 33-check passive scan above, plus 9 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, verbose error pages, path traversal, template injection, and Host header injection. Detection only: nothing is written, deleted, or brute-forced.</p>
+      <p style="color:var(--muted); line-height:1.6; margin:0 0 16px; max-width:62ch">Runs the full 39-check passive scan above, plus 9 active, non-destructive tests that probe how your site handles hostile input &mdash; reflected input, database error leaks, open redirects, leftover backup files, risky HTTP methods, verbose error pages, path traversal, template injection, and Host header injection. Detection only: nothing is written, deleted, or brute-forced.</p>
       <form class="scan" action="/vapt" method="post" id="vaptForm">
         <div class="urlwrap">
           <span class="proto">https://</span>
@@ -192,11 +192,12 @@
 
     <section class="checks">
       <p class="clabel">Coverage</p>
-      <h2>33 checks in every scan</h2>
+      <h2>39 checks in every scan</h2>
       <p class="csub">Each scan probes the headers, transport security, and exposed files of your
         site &mdash; plus the launch risks that cost AI-built sites real money: a public
-        database, leaked admin keys, missing image descriptions, uncached files, and
-        text-message signups without consent. Every report also maps your results
+        database, leaked admin keys, missing image descriptions, uncached files,
+        text-message signups without consent, trackers with no cookie consent, and
+        missing or copy-paste privacy &amp; terms pages. Every report also maps your results
         against the OWASP Top 10 &mdash; honestly marking what can and can't be
         tested from outside.</p>
       <div class="grid">
@@ -233,6 +234,12 @@
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg><div><span>Image alt text</span><small>Accessibility lawsuit risk</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M13 2L4.5 13.5H11L9.5 22 19 10h-6.5L13 2z"/></svg><div><span>File caching</span><small>No surprise bandwidth bills</small></div></div>
         <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><div><span>SMS consent</span><small>Text signup asks permission</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6"/></svg><div><span>Privacy policy</span><small>Page exists and is real</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z"/><path d="M14 3v6h6M9 13h6M9 17h4"/></svg><div><span>Terms page</span><small>Page exists and is complete</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg><div><span>No placeholders</span><small>Legal text actually customised</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6 8-6s8 2 8 6"/></svg><div><span>Data receivers named</span><small>Privacy lists processors</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg><div><span>Cookie consent</span><small>Asked before trackers run</small></div></div>
+        <div class="tile"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg><div><span>Storage buckets</span><small>Not left public</small></div></div>
       </div>
     </section>
   </main>

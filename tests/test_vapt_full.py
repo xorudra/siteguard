@@ -95,7 +95,7 @@ class TestVaptRouteWiring(unittest.TestCase):
         html = resp.get_data(as_text=True)
         self.assertIn("See all 31 checks", html)
         # 100 - 5 - 15 = 80 -> B
-        self.assertIn("full scan: 33 passive checks + 9 active", html)
+        self.assertIn("full scan: 39 passive checks + 9 active", html)
 
     def test_do_vapt_requires_consent(self):
         import app as appmod

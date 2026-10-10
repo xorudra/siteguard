@@ -98,6 +98,15 @@ CHECK_MAP = {
     "Images have text descriptions (alt text)": None,
     "Files cached, not re-downloaded every visit": None,
     "Text-message signup asks for consent": None,
+    # --- legal-basics checks (2026-10-10, reel 2) ---
+    "Cloud storage buckets not public": "A01",
+    # Legal/compliance risks again — accounted for, mapped to no
+    # OWASP category so the coverage table stays honest.
+    "Privacy policy page exists": None,
+    "Terms page exists": None,
+    "Legal pages customised and complete": None,
+    "Privacy policy names who receives data": None,
+    "Cookie consent shown when trackers run": None,
     # --- VAPT mode ---
     "User input reflected in pages": "A03",
     "Database errors hidden": "A03",
