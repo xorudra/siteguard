@@ -141,6 +141,60 @@ POC_DETAILS = {
         "repro": ["Open https://TARGET/wp-login.php in a browser — the login form loads."],
         "evidence": "/wp-login.php returned HTTP 200.",
     },
+    "supabase-service-key": {
+        "impact": "The service_role key bypasses all Row Level Security. Anyone "
+                  "who views the page source can read, modify or delete the "
+                  "entire database — user accounts, orders, everything.",
+        "repro": ["Open the site's page source / bundled JS and search for "
+                  "'supabase.co' and 'service_role'.",
+                  "The admin key is shipped to every visitor's browser."],
+        "evidence": "A JWT decoding to role=service_role was found in the "
+                    "public page source.",
+    },
+    "supabase-data-open": {
+        "impact": "Private table data (emails, names, order details) is "
+                  "readable by anyone on the internet with no login — the "
+                  "exact exposure behind CVE-2025-48757, found in about 1 "
+                  "in 10 AI-built apps scanned in 2025.",
+        "repro": ["Take the public anon key from the site's page source.",
+                  "Run: curl 'https://<project>.supabase.co/rest/v1/<table>"
+                  "?select=*&limit=1' -H 'apikey: <anon key>'",
+                  "Real rows come back instead of a permission error."],
+        "evidence": "A read-only request using only the site's public anon "
+                    "key returned rows from a table. No row values were "
+                    "stored in this report.",
+    },
+    "img-alt-missing": {
+        "impact": "Blind and low-vision visitors using screen readers get "
+                  "nothing from these images. Missing alt text is a standard "
+                  "claim in ADA accessibility lawsuits, which hit thousands "
+                  "of small sites every year.",
+        "repro": ["Run: curl -s https://TARGET | grep -o '<img[^>]*>'",
+                  "Tags without an alt= attribute are the problem images."],
+        "evidence": "One or more <img> tags on the homepage have no alt "
+                    "attribute at all.",
+    },
+    "no-cache-headers": {
+        "impact": "Every visit re-downloads every file in full. A bot, a "
+                  "hotlink or one viral link can quietly run up a bandwidth "
+                  "bill in the tens of thousands of dollars on metered "
+                  "hosting — with no users to show for it.",
+        "repro": ["Run: curl -sI https://TARGET/<a static file>",
+                  "No Cache-Control, Expires or ETag header is returned."],
+        "evidence": "None of the homepage's static files carried any "
+                    "caching headers.",
+    },
+    "sms-consent-risk": {
+        "impact": "In the US, marketing texts sent without prior express "
+                  "written consent carry $500 per message in statutory "
+                  "damages under the TCPA — a 10,000-number launch list "
+                  "is a $5M claim on paper.",
+        "repro": ["Open https://TARGET and find the phone-number form.",
+                  "There is no consent checkbox, wording or terms next to it."],
+        "evidence": "A phone-number input was found with no visible consent "
+                    "signals on the page. Backend consent records cannot be "
+                    "verified from outside.",
+    },
 }
 
 # --- Server-generated PoC PDF: plain text document with NO embedded fonts.
@@ -197,6 +251,11 @@ REFERENCES = {
     "cross-origin-policy-missing": "OWASP Secure Headers Project; https://owasp.org/www-project-secure-headers/",
     "hsts-weak": "OWASP HTTP Strict Transport Security Cheat Sheet; https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Strict_Transport_Security_Cheat_Sheet.html",
     "robots-disclosure": "CWE-538 File and Directory Information Exposure; https://cwe.mitre.org/data/definitions/538.html",
+    "supabase-service-key": "Supabase — Row Level Security & API keys; https://supabase.com/docs/guides/database/postgres/row-level-security",
+    "supabase-data-open": "CVE-2025-48757 — Missing RLS in Supabase applications; https://nvd.nist.gov/vuln/detail/CVE-2025-48757",
+    "img-alt-missing": "WCAG 2.1 — Non-text Content (1.1.1); https://www.w3.org/WAI/WCAG21/Understanding/non-text-content.html",
+    "no-cache-headers": "MDN — HTTP caching & Cache-Control; https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Caching",
+    "sms-consent-risk": "FCC — TCPA rules for text messaging consent; https://www.fcc.gov/consumers/guides/stop-unwanted-robocalls-and-texts",
 }
 
 

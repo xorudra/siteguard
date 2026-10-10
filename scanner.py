@@ -5,7 +5,9 @@ scan(url) -> dict with score, grade, and findings. Every finding carries
 a simple explanation: what it means and how to fix it.
 Only scans the domain the user asked for. HTTP-level checks only.
 """
+import base64
 import ipaddress
+import json
 import re
 import socket
 import ssl
@@ -67,15 +69,18 @@ def _check_url(url):
     return url
 
 
-def _safe_get(url, max_redirects=MAX_REDIRECTS, follow=True):
+def _safe_get(url, max_redirects=MAX_REDIRECTS, follow=True, headers=None):
     """GET with optional manual redirect-following; every hop is re-validated.
 
     requests' automatic redirect-following would let a hostile site bounce
     us onto an internal address, so we follow redirects ourselves.
     """
+    hdrs = dict(UA)
+    if headers:
+        hdrs.update(headers)
     for _ in range(max_redirects + 1):
         _check_url(url)
-        r = requests.get(url, headers=UA, timeout=TIMEOUT,
+        r = requests.get(url, headers=hdrs, timeout=TIMEOUT,
                          allow_redirects=False)
         if not follow:
             return r
@@ -89,8 +94,20 @@ def _safe_get(url, max_redirects=MAX_REDIRECTS, follow=True):
     raise UnsafeTarget("Too many redirects — giving up on that address.")
 
 
-def _get(url):
-    return _safe_get(url)
+def _get(url, headers=None):
+    return _safe_get(url, headers=headers)
+
+
+def _jwt_role(token):
+    """Read the 'role' claim out of a JWT payload (no verification — the
+    payload is public to anyone who can see the token, which is the point)."""
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload.encode()))
+        return str(data.get("role", ""))
+    except Exception:
+        return ""
 
 
 def scan(raw_url):
@@ -636,6 +653,260 @@ def scan(raw_url):
             _record("Mac junk file exposed (.DS_Store)", "passed")
     except Exception:
         _record("Mac junk file exposed (.DS_Store)", "skipped")
+
+    # --- Reel risks (2026-10-10): the four ways a vibe-coded app can cost
+    # its owner real money before it has a single user. Checks 29-33.
+
+    # Page source pool: homepage HTML + up to 3 same-host script files,
+    # because bundled JS is where backend keys actually live.
+    _src = (base.text if base is not None else "") or ""
+    try:
+        _fetched = 0
+        for _s in re.findall(r'<script[^>]+src=["\']([^"\']+)', _src, re.I):
+            if _fetched >= 3 or len(_src) > 1_000_000:
+                break
+            _u = requests.compat.urljoin(f"https://{host}/", _s)
+            if urlparse(_u).hostname != host:
+                continue
+            _fetched += 1
+            try:
+                _r = _get(_u)
+                if _r.status_code == 200:
+                    _src += "\n" + (_r.text or "")
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    _sb_urls = sorted(set(re.findall(
+        r"https://[a-z0-9-]+\.supabase\.co", _src)))
+    _sb_anon = ""
+    _sb_service = False
+    for _t in re.findall(
+            r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+", _src):
+        _role = _jwt_role(_t)
+        if _role == "service_role":
+            _sb_service = True
+        elif _role == "anon" and not _sb_anon:
+            _sb_anon = _t
+    if not _sb_service:
+        _sb_service = bool(re.search(
+            r"service_role[\"']?\s*[:=]\s*[\"']eyJ", _src))
+
+    # 29. Supabase service-role (admin) key leaked in page source — this
+    # key bypasses every database protection the service offers.
+    if _sb_service:
+        _record("Backend admin keys not leaked in page source", "failed")
+        findings.append(_finding(
+            "high", "supabase-service-key",
+            "Database admin key is public in your site's code",
+            "Your site's code contains a Supabase 'service_role' key. "
+            "That key ignores all database access rules — anyone who "
+            "views your page source can read, change or delete your "
+            "entire database.",
+            "Remove the service_role key from the website code right "
+            "away and rotate it in Supabase (Project Settings -> API). "
+            "Browsers must only ever use the 'anon' key, with Row Level "
+            "Security turned on."))
+    else:
+        _record("Backend admin keys not leaked in page source", "passed")
+
+    # 30. Public database readable — Row Level Security test. Uses ONLY
+    # the public anon key the site itself hands to every visitor, reads
+    # at most 1 row per table (3 tables max), and never records row
+    # values — only table and column names.
+    if _sb_urls and _sb_anon:
+        try:
+            _proj = _sb_urls[0]
+            _hdr = {"apikey": _sb_anon,
+                    "Authorization": f"Bearer {_sb_anon}"}
+            _tables = []
+            _r = _get(f"{_proj}/rest/v1/", headers=_hdr)
+            if _r.status_code == 200:
+                _spec = json.loads(_r.text)
+                for _p in (_spec.get("paths") or {}):
+                    if _p != "/" and not _p.startswith("/rpc"):
+                        _tables.append(_p.lstrip("/"))
+            _sens_cols = {"email", "name", "full_name", "phone", "address",
+                          "password", "user_id", "first_name", "last_name",
+                          "dob", "date_of_birth"}
+            _open_tables, _sens_tables = [], []
+            for _t in _tables[:3]:
+                try:
+                    _rr = _get(f"{_proj}/rest/v1/{_t}?select=*&limit=1",
+                               headers=_hdr)
+                except Exception:
+                    continue
+                if _rr.status_code != 200:
+                    continue
+                try:
+                    _rows = json.loads(_rr.text)
+                except Exception:
+                    continue
+                if (isinstance(_rows, list) and _rows
+                        and isinstance(_rows[0], dict)):
+                    _open_tables.append(_t)
+                    if _sens_cols & {k.lower() for k in _rows[0]}:
+                        _sens_tables.append(_t)
+            if _open_tables:
+                _record("Database not readable by the public (RLS)",
+                        "failed")
+                _worst = _sens_tables or _open_tables
+                findings.append(_finding(
+                    "high" if _sens_tables else "medium",
+                    "supabase-data-open",
+                    "Your database can be read by anyone "
+                    f"(table: {_worst[0]})",
+                    "Using only the public key your own website gives "
+                    "every visitor, this scan read real rows from your "
+                    "database table '" + _worst[0] + "'. Row Level "
+                    "Security is off or missing, so the same request "
+                    "works for anyone on the internet — a scan of 1,645 "
+                    "AI-built apps found about 1 in 10 readable this "
+                    "way (CVE-2025-48757). No row values were stored "
+                    "in this report.",
+                    "In Supabase: turn ON Row Level Security for every "
+                    "table (Table Editor -> RLS) and add policies that "
+                    "only let users see their own rows. Then test by "
+                    "opening your database API with just the anon key."))
+            else:
+                _record("Database not readable by the public (RLS)",
+                        "passed")
+        except Exception:
+            _record("Database not readable by the public (RLS)", "skipped")
+    else:
+        _record("Database not readable by the public (RLS)", "skipped")
+
+    # 31. Images missing alt text — the accessibility gap behind ADA
+    # lawsuits against small sites.
+    try:
+        _html = (base.text if base is not None else "") or ""
+        _imgs = re.findall(r"<img\b[^>]*>", _html, re.I)
+        _noalt = [t for t in _imgs if not re.search(r"\balt\s*=", t, re.I)]
+        if _noalt:
+            _record("Images have text descriptions (alt text)", "failed")
+            findings.append(_finding(
+                "medium", "img-alt-missing",
+                f"{len(_noalt)} of {len(_imgs)} images have no text "
+                "description",
+                "Images without alt text are invisible to screen "
+                "readers used by blind visitors. Missing basics like "
+                "this are behind thousands of accessibility (ADA) "
+                "lawsuits every year — including against companies "
+                "with no revenue yet.",
+                "Add a short alt='...' description to every meaningful "
+                "image (alt='' is fine for purely decorative ones). "
+                "Most site builders and AI tools can add these in bulk."))
+        else:
+            _record("Images have text descriptions (alt text)", "passed")
+    except Exception:
+        _record("Images have text descriptions (alt text)", "skipped")
+
+    # 32. No caching on static files — every visit (or bot) re-downloads
+    # everything; this is how a $73k bandwidth bill happens.
+    try:
+        _html = (base.text if base is not None else "") or ""
+        _assets = []
+        for _m in re.findall(
+                r"(?:src|href)=[\"']([^\"']+\.(?:css|js|png|jpe?g|webp|"
+                r"svg|gif)(?:\?[^\"']*)?)[\"']", _html, re.I):
+            _u = requests.compat.urljoin(f"https://{host}/", _m)
+            if urlparse(_u).hostname == host and _u not in _assets:
+                _assets.append(_u)
+            if len(_assets) >= 5:
+                break
+        if not _assets:
+            _record("Files cached, not re-downloaded every visit",
+                    "skipped")
+        else:
+            _checked, _uncached, _big_uncached = 0, [], []
+            for _u in _assets:
+                try:
+                    _r = _get(_u)
+                except Exception:
+                    continue
+                _checked += 1
+                _h = {k.lower(): v for k, v in _r.headers.items()}
+                _cc = _h.get("cache-control", "").lower()
+                _cached = ("max-age" in _cc or "immutable" in _cc
+                           or "public" in _cc or "expires" in _h
+                           or "etag" in _h)
+                if not _cached:
+                    _uncached.append(_u)
+                    try:
+                        _size = int(_h.get("content-length", "0"))
+                    except ValueError:
+                        _size = 0
+                    if _size >= 1_000_000:
+                        _big_uncached.append(_u)
+            if _checked == 0:
+                _record("Files cached, not re-downloaded every visit",
+                        "skipped")
+            elif _uncached and (len(_uncached) == _checked
+                                or _big_uncached):
+                _record("Files cached, not re-downloaded every visit",
+                        "failed")
+                findings.append(_finding(
+                    "low", "no-cache-headers",
+                    "Your files are re-downloaded on every single visit",
+                    "None of your site's files tell browsers or CDNs to "
+                    "cache them, so every visit — human or bot — pulls "
+                    "them again in full. One repeatedly-hit file with "
+                    "no caching, compression or spend alerts is how "
+                    "sites end up with surprise bandwidth bills in the "
+                    "tens of thousands of dollars.",
+                    "Serve static files (images, CSS, JS) with a "
+                    "Cache-Control header (e.g. 'public, max-age=31536000, "
+                    "immutable' for versioned files), put a CDN like "
+                    "Cloudflare in front, turn on hotlink protection, "
+                    "and set a bandwidth/spend alert with your host."))
+            else:
+                _record("Files cached, not re-downloaded every visit",
+                        "passed")
+    except Exception:
+        _record("Files cached, not re-downloaded every visit", "skipped")
+
+    # 33. Phone/SMS signup with no visible consent — TCPA risk. Info
+    # only: consent records can't be proven from outside, so flag the
+    # risk, never accuse.
+    try:
+        _html = ((base.text if base is not None else "") or "")
+        _low = _html.lower()
+        _phone_field = bool(
+            re.search(r"type=[\"']tel[\"']", _low)
+            or re.search(r"<input[^>]+(?:name|id)=[\"'][^\"']*"
+                         r"(phone|mobile|sms)", _low))
+        if not _phone_field:
+            _record("Text-message signup asks for consent", "passed")
+        else:
+            _consent = (
+                any(w in _low for w in (
+                    "consent", "message and data rates",
+                    "agree to receive", "terms and conditions"))
+                or "type=\"checkbox\"" in _low
+                or "type='checkbox'" in _low)
+            if _consent:
+                _record("Text-message signup asks for consent", "passed")
+            else:
+                _record("Text-message signup asks for consent", "info")
+                findings.append(_finding(
+                    "info", "sms-consent-risk",
+                    "Phone number collected with no visible consent step",
+                    "Your site collects phone numbers but shows no "
+                    "consent wording, checkbox or terms next to the "
+                    "form. In the US, marketing texts without prior "
+                    "written consent carry statutory damages of $500 "
+                    "per message (TCPA) — 10,000 launch texts can "
+                    "become a $5M claim on paper. This scan can't see "
+                    "your backend records, so treat this as a prompt "
+                    "to check, not a verdict.",
+                    "Add an unticked consent checkbox with clear "
+                    "wording ('I agree to receive marketing texts...'), "
+                    "keep a record of each consent (who, when, the "
+                    "exact wording), and never text numbers collected "
+                    "without it."))
+    except Exception:
+        _record("Text-message signup asks for consent", "skipped")
 
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"

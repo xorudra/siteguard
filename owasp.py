@@ -89,6 +89,15 @@ CHECK_MAP = {
     "Debug page exposed (phpinfo.php)": "A01",
     "Server status page exposed": "A01",
     "Mac junk file exposed (.DS_Store)": "A05",
+    # --- launch-risk checks (2026-10-10) ---
+    "Backend admin keys not leaked in page source": "A01",
+    "Database not readable by the public (RLS)": "A01",
+    # The next three are legal/cost risks, not OWASP security categories.
+    # They are listed so every check name is accounted for, but mapped to
+    # no category — the OWASP table must not claim them.
+    "Images have text descriptions (alt text)": None,
+    "Files cached, not re-downloaded every visit": None,
+    "Text-message signup asks for consent": None,
     # --- VAPT mode ---
     "User input reflected in pages": "A03",
     "Database errors hidden": "A03",

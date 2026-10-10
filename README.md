@@ -41,10 +41,16 @@ Push this folder to GitHub, then New -> Web Service on render.com pointing
 at the repo. `render.yaml` sets the build/start commands automatically.
 
 ## How it works
-`scanner.py` runs 23 HTTP-level checks (HTTPS, HSTS, security headers,
+`scanner.py` runs 33 HTTP-level checks (HTTPS, HSTS, security headers,
 certificate expiry, exposed .git/.env, server version leaks, WordPress
 login, cookie flags, CORS, old TLS versions, TRACE method, technology
-headers, security.txt, robots.txt and more). Each finding has a severity (high/medium/low/info) and a
+headers, security.txt, robots.txt and more) — plus the launch-risk checks
+added 2026-10-10: leaked Supabase service-role keys in page source, a
+public-database (RLS) read test using only the site's own public anon key
+(read-only, 1 row per table, values never stored), images missing alt
+text (ADA risk), static files served with no caching headers (bandwidth
+bill risk), and phone-number forms with no visible consent step (TCPA
+risk, info-only). VAPT mode adds 9 active tests on top (42 total). Each finding has a severity (high/medium/low/info) and a
 simple explanation of what it means and how to fix it. Score starts at 100, deductions per severity.
 
 `app.py` is a small Flask app: form on `/`, report on `/scan`.
