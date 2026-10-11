@@ -4,6 +4,8 @@
 - H39 useful 404/405 page instead of Flask's default error text.
 - H39 form errors preserve the user's valid input (scan + VAPT URL)
       instead of making them retype it.
+- G33 public GET pages carry explicit Cache-Control TTLs; POST and
+      error responses are never marked publicly cacheable.
 
 App-level tests skip cleanly when Flask is not installed (the scanner
 test environment has no Flask; production installs requirements.txt).
@@ -62,6 +64,37 @@ class TestAppGH39(unittest.TestCase):
                              headers=headers)
         self.assertEqual(r.status_code, 429)
         self.assertIn('value="example.org"', r.get_data(as_text=True))
+
+
+@unittest.skipUnless(_HAVE_APP, "Flask not installed in this environment")
+class TestAppG33(unittest.TestCase):
+    def setUp(self):
+        self.client = sg_app.app.test_client()
+
+    def tearDown(self):
+        sg_app._hits.clear()
+
+    def test_index_has_short_public_cache(self):
+        r = self.client.get("/")
+        self.assertEqual(r.status_code, 200)
+        cc = r.headers.get("Cache-Control", "")
+        self.assertIn("public", cc)
+        self.assertIn("max-age=300", cc)
+
+    def test_legal_pages_have_longer_public_cache(self):
+        for path in ("/privacy", "/terms"):
+            r = self.client.get(path)
+            cc = r.headers.get("Cache-Control", "")
+            self.assertIn("public", cc, path)
+            self.assertIn("max-age=3600", cc, path)
+
+    def test_post_responses_are_not_publicly_cached(self):
+        r = self.client.post("/scan", data={})
+        self.assertNotIn("public", r.headers.get("Cache-Control", ""))
+
+    def test_error_pages_are_not_cached(self):
+        r = self.client.get("/no-such-page")
+        self.assertNotIn("public", r.headers.get("Cache-Control", ""))
 
 
 if __name__ == "__main__":

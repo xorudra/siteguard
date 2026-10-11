@@ -544,8 +544,19 @@ def _rate_or_429():
               "and try again."), 429
 
 
+# --- G33 caching: the only cacheable responses are the public GET
+# pages (identical for every visitor). Everything else — POST results,
+# error pages — is per-request and never marked publicly cacheable.
+_PUBLIC_CACHE = {"/": 300, "/privacy": 3600, "/terms": 3600}
+
+
 @app.after_request
 def _security_headers(resp):
+    if (request.method == "GET" and resp.status_code == 200
+            and request.path in _PUBLIC_CACHE
+            and "Cache-Control" not in resp.headers):
+        resp.headers["Cache-Control"] = (
+            f"public, max-age={_PUBLIC_CACHE[request.path]}")
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["X-Frame-Options"] = "DENY"
     resp.headers["Referrer-Policy"] = "no-referrer"
