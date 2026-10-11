@@ -6,6 +6,8 @@
       instead of making them retype it.
 - G33 public GET pages carry explicit Cache-Control TTLs; POST and
       error responses are never marked publicly cacheable.
+- H41 favicon served (SVG, long cache) and linked from every page;
+      canonical + Open Graph basics on the indexable pages.
 
 App-level tests skip cleanly when Flask is not installed (the scanner
 test environment has no Flask; production installs requirements.txt).
@@ -95,6 +97,47 @@ class TestAppG33(unittest.TestCase):
     def test_error_pages_are_not_cached(self):
         r = self.client.get("/no-such-page")
         self.assertNotIn("public", r.headers.get("Cache-Control", ""))
+
+
+@unittest.skipUnless(_HAVE_APP, "Flask not installed in this environment")
+class TestAppH41(unittest.TestCase):
+    def setUp(self):
+        self.client = sg_app.app.test_client()
+
+    def tearDown(self):
+        sg_app._hits.clear()
+
+    def test_favicon_svg_served_with_long_cache(self):
+        r = self.client.get("/favicon.svg")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("image/svg+xml", r.headers.get("Content-Type", ""))
+        self.assertIn("max-age=604800",
+                      r.headers.get("Cache-Control", ""))
+        self.assertIn(b"<svg", r.data)
+
+    def test_favicon_ico_path_also_served(self):
+        r = self.client.get("/favicon.ico")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"<svg", r.data)
+
+    def test_pages_link_the_favicon(self):
+        for path in ("/", "/privacy", "/terms", "/no-such-page"):
+            body = self.client.get(path).get_data(as_text=True)
+            self.assertIn('rel="icon"', body, path)
+            self.assertIn("/favicon.svg", body, path)
+
+    def test_index_has_canonical_and_og(self):
+        body = self.client.get("/").get_data(as_text=True)
+        self.assertIn('rel="canonical"', body)
+        self.assertIn("https://siteguard-vf9c.onrender.com/", body)
+        self.assertIn('property="og:title"', body)
+        self.assertIn('property="og:description"', body)
+
+    def test_legal_pages_have_canonical(self):
+        body = self.client.get("/privacy").get_data(as_text=True)
+        self.assertIn("https://siteguard-vf9c.onrender.com/privacy", body)
+        body = self.client.get("/terms").get_data(as_text=True)
+        self.assertIn("https://siteguard-vf9c.onrender.com/terms", body)
 
 
 if __name__ == "__main__":

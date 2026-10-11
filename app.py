@@ -577,6 +577,23 @@ def _security_headers(resp):
     return resp
 
 
+# --- H41 discovery basics: the brand shield as a real favicon asset.
+_FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" '
+    'fill="none" stroke="#4da3ff" stroke-width="1.9" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    '<rect width="24" height="24" rx="5" fill="#0a0d12" stroke="none"/>'
+    '<path d="M12 3.5l6.5 2.4v4.9c0 4-2.8 7-6.5 8.7-3.7-1.7-6.5-4.7-6.5-8.7'
+    'V5.9L12 3.5z"/><path d="M9.2 12l2 2 3.8-3.8"/></svg>')
+
+
+@app.route("/favicon.svg", methods=["GET"])
+@app.route("/favicon.ico", methods=["GET"])
+def favicon():
+    return Response(_FAVICON_SVG, mimetype="image/svg+xml", headers={
+        "Cache-Control": "public, max-age=604800"})
+
+
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")

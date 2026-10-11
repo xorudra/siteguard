@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SiteGuard — {{ "Privacy Policy" if page == "privacy" else "Terms of Use" }}</title>
 <meta name="description" content="{{ "How SiteGuard handles your data: scans run in memory, nothing is stored." if page == "privacy" else "The rules for using SiteGuard: only scan sites you own or have permission to test." }}">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="canonical" href="https://siteguard-vf9c.onrender.com/{{ page }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="SiteGuard — {{ "Privacy Policy" if page == "privacy" else "Terms of Use" }}">
+<meta property="og:description" content="{{ "How SiteGuard handles your data: scans run in memory, nothing is stored." if page == "privacy" else "The rules for using SiteGuard: only scan sites you own or have permission to test." }}">
+<meta property="og:url" content="https://siteguard-vf9c.onrender.com/{{ page }}">
 <style>
   :root{
     --bg:#0a0d12; --surface:#10141b; --surface2:#151b24; --line:rgba(255,255,255,.09);
