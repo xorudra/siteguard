@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found — SiteGuard</title>
+<meta name="description" content="That page doesn't exist on SiteGuard. Head back to the scanner.">
+<style>
+  :root{
+    --bg:#0a0d12; --surface:#10141b; --line:rgba(255,255,255,.09);
+    --text:#e9eef5; --muted:#98a4b6; --faint:#8794a9;
+    --accent:#2f81f7; --accent-hi:#4da3ff;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:var(--sans); color:var(--text); background:var(--bg);
+    min-height:100vh; display:flex; flex-direction:column;
+    background-image:
+      linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size:44px 44px;
+  }
+  .topbar{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 28px; border-bottom:1px solid var(--line);
+    background:rgba(10,13,18,.82);
+  }
+  .brand{display:flex; align-items:center; gap:11px; text-decoration:none; color:var(--text)}
+  .brand svg{width:30px; height:30px; display:block}
+  .brand b{font-size:1.12em; letter-spacing:.4px; font-weight:700}
+  .brand b span{color:var(--accent-hi)}
+  main{flex:1; width:100%; max-width:880px; margin:0 auto; padding:72px 24px 40px}
+  .code{font-family:var(--mono); font-size:.85em; letter-spacing:3px; color:var(--accent-hi); text-transform:uppercase; margin:0 0 14px}
+  h1{margin:0 0 16px; font-size:clamp(1.9em, 5vw, 2.8em); line-height:1.1; letter-spacing:-1px; font-weight:750}
+  p.lede{margin:0 0 30px; font-size:1.08em; line-height:1.65; color:var(--muted); max-width:56ch}
+  a.btn{
+    display:inline-block; padding:15px 34px; background:var(--accent); color:#fff; border-radius:12px;
+    text-decoration:none; font-weight:700; min-height:48px;
+  }
+  a.btn:hover{background:#1f6feb}
+  footer{
+    border-top:1px solid var(--line); padding:26px 28px; display:flex; flex-wrap:wrap;
+    gap:12px; align-items:center; justify-content:space-between;
+    color:var(--faint); font-size:.86em;
+  }
+  footer a{color:var(--muted); text-decoration:none}
+  footer a:hover{color:var(--text)}
+  @media(max-width:520px){ .topbar{padding:14px 18px} main{padding-top:48px} }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="SiteGuard home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4da3ff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+      <b>Site<span>Guard</span></b>
+    </a>
+  </header>
+
+  <main>
+    <p class="code">Error {{ code }}</p>
+    <h1>That page isn't here.</h1>
+    <p class="lede">The address you asked for doesn't exist on SiteGuard — it may have
+      been mistyped, or the page may have moved. The scanner itself is right where it always was.</p>
+    <a class="btn" href="/">Go to the scanner</a>
+  </main>
+
+  <footer>
+    <span>SiteGuard &middot; Free &middot; No signup</span>
+    <span><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a></span>
+  </footer>
+</body>
+</html>

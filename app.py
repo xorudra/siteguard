@@ -518,10 +518,19 @@ def _origin_ok():
 def _csrf_guard():
     if request.method == "POST" and not _origin_ok():
         return render_template(
-            "index.html",
+            "index.html", url=(request.form.get("url") or ""),
             error="That request didn't come from this site — please "
                   "start again from the homepage."), 403
     return None
+
+
+@app.errorhandler(404)
+@app.errorhandler(405)
+def _not_found(_e):
+    """Useful error page (Launch Safety Standard H39): a missing page
+    or a wrong-method hit gets the branded page with a way back to the
+    scanner, not Flask's default plain-text error."""
+    return render_template("404.html", code=_e.code or 404), _e.code or 404
 
 
 def _rate_or_429():
@@ -530,7 +539,7 @@ def _rate_or_429():
     if _rate_ok(_client_ip()):
         return None
     return render_template(
-        "index.html",
+        "index.html", url=(request.form.get("url") or ""),
         error="Too many scans from you lately — please wait a bit "
               "and try again."), 429
 
@@ -583,16 +592,16 @@ def do_scan():
         return render_template("index.html",
                                error="Please enter a website address.")
     if len(url) > 253:
-        return render_template("index.html",
+        return render_template("index.html", url=url,
                                error="That address looks too long to be real.")
 
     try:
         report = scan(url)
     except UnsafeTarget as e:
-        return render_template("index.html", error=str(e))
+        return render_template("index.html", url=url, error=str(e))
     except Exception:
         return render_template(
-            "index.html",
+            "index.html", url=url,
             error="Could not scan that site — check the address and try again.")
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
@@ -639,11 +648,11 @@ def do_vapt():
         return render_template("index.html",
                                error="Please enter a website address.")
     if len(url) > 253:
-        return render_template("index.html",
+        return render_template("index.html", url=url,
                                error="That address looks too long to be real.")
     if not request.form.get("consent"):
         return render_template(
-            "index.html",
+            "index.html", url=url,
             error="Please tick the permission box — VAPT tests may only run "
                   "against sites you own or have permission to test.")
 
@@ -653,10 +662,10 @@ def do_vapt():
         passive = scan(url)
         active = vapt_scan(url)
     except UnsafeTarget as e:
-        return render_template("index.html", error=str(e))
+        return render_template("index.html", url=url, error=str(e))
     except Exception:
         return render_template(
-            "index.html",
+            "index.html", url=url,
             error="Could not scan that site — check the address and try again.")
     report = _merge_reports(passive, active)
     return render_template("report.html", r=report,
@@ -675,11 +684,12 @@ def make_poc():
     name = (request.form.get("name") or "").strip()[:80]
     report = _load_report(request.form.get("payload", ""))
 
-    def _report_page(r, payload, poc_error=None):
+    def _report_page(r, payload, poc_error=None, poc_name=""):
         return render_template("report.html", r=r,
                                sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                                grade_color=GRADE_COLOR[r["grade"]],
                                poc_payload=payload, poc_error=poc_error,
+                               poc_name=poc_name,
                                mode=r.get("mode"),
                                owasp=owasp_coverage(r))
 
@@ -690,7 +700,8 @@ def make_poc():
     payload = request.form.get("payload", "")
     if not name:
         return _report_page(report, payload,
-                            "Please enter your name for the PoC report.")
+                            "Please enter your name for the PoC report.",
+                            poc_name=name)
     if not report["findings"]:
         return _report_page(report, payload)
 

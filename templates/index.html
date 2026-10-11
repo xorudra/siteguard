@@ -159,7 +159,8 @@
         <div class="urlwrap">
           <span class="proto">https://</span>
           <input name="url" id="urlInput" placeholder="example.com" autocomplete="off"
-                 autocapitalize="off" spellcheck="false" aria-label="Website address">
+                 autocapitalize="off" spellcheck="false" aria-label="Website address"
+                 value="{{ url or '' }}">
         </div>
         <button class="go" type="submit" id="scanBtn">Scan</button>
       </form>
@@ -181,7 +182,8 @@
         <div class="urlwrap">
           <span class="proto">https://</span>
           <input name="url" placeholder="example.com" autocomplete="off"
-                 autocapitalize="off" spellcheck="false" aria-label="Website address">
+                 autocapitalize="off" spellcheck="false" aria-label="Website address"
+                 value="{{ url or '' }}">
         </div>
         <button class="go" type="submit">Run VAPT</button>
       </form>
