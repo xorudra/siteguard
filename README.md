@@ -1,6 +1,6 @@
 # SiteGuard — website security scanner
 
-**Try it live:** https://siteguard.140-238-244-82.sslip.io — enter any website,
+**Try it live:** https://92-4-65-158.sslip.io — enter any website,
 get a safety score. No signup needed.
 
 Enter a URL, get a safety score (0-100, grade A-F) and a list of problems
