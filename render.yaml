@@ -11,3 +11,8 @@ services:
       # and signed payloads randomly failed verification (A8).
       - key: SECRET_KEY
         generateValue: true
+      # This deploy sits behind Render's edge, which appends the
+      # address it observed to X-Forwarded-For — the app may trust the
+      # last hop for rate-limit identity only when this flag is set.
+      - key: SITEGUARD_TRUST_PROXY
+        value: "1"

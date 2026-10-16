@@ -9,6 +9,8 @@ owasp_coverage(report) -> list of 10 dicts, one per category:
     {"id", "title", "note", "status", "checks"}
 status is one of:
     "covered"      - at least one mapped check ran in this scan
+    "not-tested"   - mapped checks exist in this scan but every one
+                     was skipped, so the category was not tested
     "not-in-scan"  - testable, but this scan mode doesn't cover it
     "not-testable" - cannot be checked from outside; see note
 """
@@ -131,8 +133,12 @@ def owasp_coverage(report):
     rows = []
     for cat in CATEGORIES:
         checks = by_cat.get(cat["id"], [])
-        if checks:
+        if checks and any(c["status"] != "skipped" for c in checks):
             status = "covered"
+        elif checks:
+            # Present but never ran (2026-10-16 run-2 fix): "covered"
+            # must mean a check actually ran, per the contract above.
+            status = "not-tested"
         elif cat["testable"]:
             status = "not-in-scan"
         else:

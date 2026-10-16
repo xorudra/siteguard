@@ -86,13 +86,16 @@ REDIRECT_PARAMS = ["next", "redirect", "url"]
 REDIRECT_CANARY = "https://example.com/sg-probe"
 
 
-def vapt_scan(raw_url):
+def vapt_scan(raw_url, deadline=None):
     url = raw_url.strip()
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     host = urlparse(url).hostname or url
     _check_url(f"https://{host}/")  # reject non-public targets up front
-    _arm_deadline()
+    # `deadline` (2026-10-16 run-2 fix): an absolute monotonic cap from
+    # the caller, so a /vapt request's passive + active phases share
+    # one overall budget instead of stacking two fresh 90s budgets.
+    _arm_deadline(until=deadline)
     base = f"https://{host}"
 
     score = 100
@@ -310,9 +313,11 @@ def vapt_scan(raw_url):
     grade = ("A" if score >= 90 else "B" if score >= 75
              else "C" if score >= 60 else "D" if score >= 40 else "F")
     _disarm_deadline()
+    skipped = sum(1 for c in checks if c["status"] == "skipped")
     return {"url": host,
             "scanned_at": datetime.now(timezone.utc).strftime(
                 "%Y-%m-%d %H:%M UTC"),
             "score": score, "grade": grade,
             "findings": findings, "checks": checks,
+            "skipped": skipped, "complete": skipped == 0,
             "mode": "vapt"}

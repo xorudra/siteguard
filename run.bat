@@ -34,7 +34,7 @@ if not defined PY (
 )
 
 echo Installing what SiteGuard needs (first run only, then it is instant)...
-%PY% -m pip install --quiet flask requests
+%PY% -m pip install --quiet -r requirements.txt
 if errorlevel 1 (
   echo.
   echo  Something went wrong. Check your internet connection,

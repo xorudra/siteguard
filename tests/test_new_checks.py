@@ -364,9 +364,12 @@ class NewChecksTest(unittest.TestCase):
                           side_effect=ConnectionError("mocked down")):
             r = vapt.vapt_scan("example.test")
         rows = {x["id"]: x for x in owasp_coverage(r)}
-        self.assertEqual(rows["A01"]["status"], "covered")
-        self.assertEqual(rows["A03"]["status"], "covered")
-        self.assertEqual(rows["A05"]["status"], "covered")
+        # Every fetch is mocked down, so every probe records "skipped":
+        # since the 2026-10-16 run-2 fix a category whose checks never
+        # ran is "not-tested", not "covered" (covered = a check ran).
+        self.assertEqual(rows["A01"]["status"], "not-tested")
+        self.assertEqual(rows["A03"]["status"], "not-tested")
+        self.assertEqual(rows["A05"]["status"], "not-tested")
         self.assertEqual(rows["A02"]["status"], "not-in-scan")
         self.assertEqual(rows["A04"]["status"], "not-testable")
 

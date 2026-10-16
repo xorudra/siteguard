@@ -87,6 +87,9 @@
     padding:30px 26px; text-align:center; font-size:1.06em; line-height:1.65; color:#c9e8d8;
   }
   .allclear b{color:#fff}
+  .allclear.partial{
+    background:rgba(232,136,0,.08); border-color:rgba(232,136,0,.4); color:#f3ddba;
+  }
   /* ---- all checks ---- */
   details.checks{background:var(--surface); border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-top:6px}
   details.checks summary{padding:17px 22px; cursor:pointer; font-weight:600; color:var(--text); list-style:none; display:flex; justify-content:space-between; align-items:center}
@@ -109,6 +112,7 @@
   .opill{font-size:.72em; font-weight:700; padding:4px 10px; border-radius:20px; flex:none}
   .op-covered{background:rgba(47,158,104,.16); color:#3ecf8e; border:1px solid rgba(47,158,104,.4)}
   .op-not-in-scan{background:rgba(232,136,0,.12); color:#f0a53c; border:1px solid rgba(232,136,0,.35)}
+  .op-not-tested{background:rgba(211,51,51,.12); color:#e88; border:1px solid rgba(211,51,51,.35)}
   .op-not-testable{background:rgba(91,101,114,.16); color:var(--muted); border:1px solid var(--line)}
   .obody{padding:0 20px 16px 20px; color:var(--muted); font-size:.92em; line-height:1.6}
   .obody p{margin:0 0 10px}
@@ -186,26 +190,32 @@
         <div class="g" style="color:{{ grade_color }}">{{ r.grade }}</div>
       </div>
       <div class="hero-body">
-        <p class="score-line"><b>{{ r.score }}</b> / 100</p>
-        {% if not r.findings %}
+        {% set ns = r.skipped|default(0) %}
+        <p class="score-line"><b>{{ r.score }}</b> / 100{% if ns %} &mdash; partial scan{% endif %}</p>
+        {% if not r.findings and ns == 0 %}
           <p class="verdict">Looking good &mdash; this site passed every check.</p>
+        {% elif not r.findings %}
+          <p class="verdict">This scan didn't finish &mdash; <b>{{ ns }} check{{ 's' if ns != 1 }} couldn't run</b>, so this is not a clean pass.</p>
         {% elif r.findings|length == 1 %}
-          <p class="verdict"><b>1 issue</b> found &mdash; details and fixes below.</p>
+          <p class="verdict"><b>1 issue</b> found &mdash; details and fixes below.{% if ns %} {{ ns }} check{{ 's' if ns != 1 }} couldn't run.{% endif %}</p>
         {% else %}
-          <p class="verdict"><b>{{ r.findings|length }} issues</b> found &mdash; details and fixes below.</p>
+          <p class="verdict"><b>{{ r.findings|length }} issues</b> found &mdash; details and fixes below.{% if ns %} {{ ns }} check{{ 's' if ns != 1 }} couldn't run.{% endif %}</p>
         {% endif %}
         {% set np = r.checks|selectattr('status','equalto','passed')|list|length %}
         {% set nf = r.checks|selectattr('status','equalto','failed')|list|length %}
         <div class="stats">
           <div class="stat ok"><span class="n">{{ np }}</span><span class="l">Passed</span></div>
           <div class="stat warn"><span class="n">{{ nf }}</span><span class="l">Need attention</span></div>
+          {% if ns %}<div class="stat warn"><span class="n">{{ ns }}</span><span class="l">Skipped</span></div>{% endif %}
           <div class="stat all"><span class="n">{{ r.checks|length }}</span><span class="l">Checks total</span></div>
         </div>
       </div>
     </div>
 
-    {% if not r.findings %}
+    {% if not r.findings and not r.skipped|default(0) %}
       <div class="allclear"><b>Nothing to fix.</b><br>Nice work keeping this site safe &mdash; every check passed.</div>
+    {% elif not r.findings %}
+      <div class="allclear partial"><b>Partial scan.</b><br>{{ r.skipped }} of {{ r.checks|length }} checks could not be completed &mdash; the score above is based only on the checks that ran.</div>
     {% else %}
       <p class="sec-label">Findings &mdash; what to fix first</p>
       {% for f in r.findings %}
@@ -225,7 +235,7 @@
       <summary><span>See all {{ r.checks|length }} checks</span><span class="chev">&#9662;</span></summary>
       <ul>
       {% for c in r.checks %}
-        <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}</li>
+        <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}{% if c.status == 'skipped' %} (skipped){% endif %}</li>
       {% endfor %}
       </ul>
     </details>
@@ -237,14 +247,14 @@
         <summary>
           <span class="oid">{{ o.id }}</span>
           <span class="otitle">{{ o.title }}</span>
-          <span class="opill op-{{ o.status }}">{% if o.status == 'covered' %}Covered{% elif o.status == 'not-in-scan' %}Not in this scan{% else %}Can't test externally{% endif %}</span>
+          <span class="opill op-{{ o.status }}">{% if o.status == 'covered' %}Covered{% elif o.status == 'not-tested' %}Not tested{% elif o.status == 'not-in-scan' %}Not in this scan{% else %}Can't test externally{% endif %}</span>
         </summary>
         <div class="obody">
           <p>{{ o.note }}</p>
           {% if o.checks %}
           <ul>
             {% for c in o.checks %}
-            <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}</li>
+            <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}{% if c.status == 'skipped' %} (skipped){% endif %}</li>
             {% endfor %}
           </ul>
           {% endif %}

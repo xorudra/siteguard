@@ -164,10 +164,10 @@ class TestScanDeadline(unittest.TestCase):
     def setUp(self):
         _FakeConn.instances = []
         _FakeConn.resp = None
-        self.addCleanup(setattr, scanner, "_scan_deadline", None)
+        self.addCleanup(scanner._disarm_deadline)
 
     def test_expired_deadline_stops_fetches(self):
-        scanner._scan_deadline = time.monotonic() - 1
+        scanner._scan_state.deadline = time.monotonic() - 1
         p1, p2 = _patch_conns()
         with patch.object(scanner.socket, "getaddrinfo", _public_gai), \
                 p1, p2:
@@ -176,7 +176,7 @@ class TestScanDeadline(unittest.TestCase):
         self.assertEqual(_FakeConn.instances, [])
 
     def test_live_deadline_lets_fetches_through(self):
-        scanner._scan_deadline = time.monotonic() + 60
+        scanner._scan_state.deadline = time.monotonic() + 60
         p1, p2 = _patch_conns()
         with patch.object(scanner.socket, "getaddrinfo", _public_gai), \
                 p1, p2:

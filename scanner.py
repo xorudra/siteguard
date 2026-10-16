@@ -12,6 +12,7 @@ import json
 import re
 import socket
 import ssl
+import threading
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -48,21 +49,28 @@ class _DeadlineExceeded(Exception):
     """The running scan exceeded its SCAN_DEADLINE budget."""
 
 
-_scan_deadline = None  # monotonic deadline of the running scan, if any
+# Per-thread deadline state (2026-10-16 run-2 fix): a single module
+# global let concurrent scans in a threaded process (the local dev
+# server is threaded by default) overwrite or erase each other's
+# budget. Thread-local storage confines each scan to its own deadline;
+# sync-worker deployments (one request per process) are unaffected.
+_scan_state = threading.local()
 
 
-def _arm_deadline():
-    global _scan_deadline
-    _scan_deadline = time.monotonic() + SCAN_DEADLINE
+def _arm_deadline(until=None):
+    t = time.monotonic() + SCAN_DEADLINE
+    if until is not None:
+        t = min(t, until)
+    _scan_state.deadline = t
 
 
 def _disarm_deadline():
-    global _scan_deadline
-    _scan_deadline = None
+    _scan_state.deadline = None
 
 
 def _check_deadline():
-    if _scan_deadline is not None and time.monotonic() >= _scan_deadline:
+    d = getattr(_scan_state, "deadline", None)
+    if d is not None and time.monotonic() >= d:
         raise _DeadlineExceeded(
             "Scan exceeded its overall time budget.")
 
@@ -1380,6 +1388,7 @@ def scan(raw_url):
     findings.sort(key=lambda f: order[f["severity"]])
 
     _disarm_deadline()
+    skipped = sum(1 for c in checks if c["status"] == "skipped")
     return {
         "url": host,
         "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
@@ -1387,6 +1396,11 @@ def scan(raw_url):
         "grade": grade,
         "findings": findings,
         "checks": checks,
+        # Completeness (2026-10-16 run-2 fix): renderers must be able to
+        # tell "tested and passed" from "not tested" — a scan whose
+        # checks were skipped must not present as a clean pass.
+        "skipped": skipped,
+        "complete": skipped == 0,
     }
 
 
