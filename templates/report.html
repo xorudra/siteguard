@@ -53,6 +53,10 @@
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     font-size:3.2em; font-weight:800; letter-spacing:-1px;
   }
+  .ring .gp{
+    position:absolute; left:0; right:0; bottom:26px; text-align:center;
+    font-size:.68em; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:#f0a53c;
+  }
   .hero-body{min-width:0}
   .score-line{font-family:var(--mono); font-size:1em; color:var(--muted); margin:0 0 6px}
   .score-line b{font-size:1.6em; color:var(--text); font-weight:700}
@@ -179,7 +183,7 @@
     {% if mode == "vapt" %}<p class="target-label" style="margin-top:10px">VAPT mode &mdash; full scan: 39 passive checks + 9 active vulnerability tests (detection only, non-destructive)</p>{% endif %}
 
     <div class="hero">
-      <div class="ring" role="img" aria-label="Score {{ r.score }} out of 100, grade {{ r.grade }}">
+      <div class="ring" role="img" aria-label="Score {{ r.score }} out of 100, grade {{ r.grade }}{% if r.skipped|default(0) %} — partial scan, {{ r.skipped }} check{{ 's' if r.skipped != 1 }} skipped{% endif %}">
         <svg width="148" height="148" viewBox="0 0 148 148">
           <circle cx="74" cy="74" r="62" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="11"/>
           <circle cx="74" cy="74" r="62" fill="none" stroke="{{ grade_color }}" stroke-width="11"
@@ -188,6 +192,7 @@
                   stroke-dashoffset="{{ '%.1f' % (389.6 * (1 - r.score / 100)) }}"/>
         </svg>
         <div class="g" style="color:{{ grade_color }}">{{ r.grade }}</div>
+        {% if r.skipped|default(0) %}<div class="gp">partial</div>{% endif %}
       </div>
       <div class="hero-body">
         {% set ns = r.skipped|default(0) %}

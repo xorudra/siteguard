@@ -183,6 +183,34 @@ class TestReportHonesty(unittest.TestCase):
         self.assertIn("Final (partial scan)", html)
         self.assertIn("Partial scan:", html)
 
+    # --- run-3 confirmed residual: the grade element itself ---
+    def test_grade_elements_carry_the_partial_qualifier(self):
+        with patch.object(sg_app, "scan",
+                          return_value=_partial_report()):
+            r = self.client.post("/scan", data={"url": "victim.test"})
+        html = r.get_data(as_text=True)
+        # The ring's accessible name and visible caption are qualified.
+        self.assertIn("partial scan, 2 checks skipped", html)
+        self.assertIn('<div class="gp">partial</div>', html)
+        # The PoC cover's grade line is qualified too.
+        payload = sg_app._sign_report(_partial_report())
+        r = self.client.post("/poc", data={"payload": payload,
+                                           "name": "Rudra"})
+        self.assertIn("&middot; partial scan",
+                      r.get_data(as_text=True))
+
+    def test_grade_elements_unqualified_when_complete(self):
+        report = _partial_report()
+        report["skipped"] = 0
+        report["complete"] = True
+        report["checks"] = [
+            {"name": "Security certificate valid", "status": "passed"}]
+        with patch.object(sg_app, "scan", return_value=report):
+            r = self.client.post("/scan", data={"url": "victim.test"})
+        html = r.get_data(as_text=True)
+        self.assertNotIn("partial scan", html)
+        self.assertNotIn('class="gp"', html)
+
     def test_poc_pdf_marks_partial(self):
         report = _partial_report()
         data = sg_app._build_poc_pdf(report, "Rudra",

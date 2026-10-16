@@ -132,7 +132,7 @@
       <h1>{{ r.url }}</h1>
       <div class="grade-line">
         <span class="grade" style="border-color:{{ grade_color }};color:#fff">{{ r.grade }}</span>
-        <span class="score">{{ r.score }}/100 &middot; {{ details|length }} finding{{ 's' if details|length != 1 }}</span>
+        <span class="score">{{ r.score }}/100 &middot; {{ details|length }} finding{{ 's' if details|length != 1 }}{% if not r.complete|default(true) %} &middot; partial scan{% endif %}</span>
       </div>
       <table>
         <tr><td>Prepared by</td><td class="v">{{ name }}</td></tr>
