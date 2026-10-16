@@ -113,12 +113,18 @@ def run_scan(base_headers=None, set_cookies=GOOD_COOKIES,
     else:  # rejected: server actively refuses the old-protocol handshake
         fake_ctx.wrap_socket.side_effect = ssl.SSLError("mocked handshake failure")
     fake_ssl_ctx_cls = MagicMock(return_value=fake_ctx)
+    # Since the 2026-10-16 audit fix the TLS probes resolve-validate-pin
+    # before dialling (_open_validated), so DNS resolution is stubbed to
+    # a public address, like the wave-1 pinning tests do.
+    fake_gai = MagicMock(return_value=[
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))])
 
     with patch.object(scanner, "_check_url", lambda url: url), \
          patch.object(scanner, "_get", side_effect=router), \
          patch.object(scanner, "_safe_get", side_effect=router), \
          patch.object(scanner, "_request",
                       return_value=FakeResponse(trace_status)), \
+         patch.object(scanner.socket, "getaddrinfo", fake_gai), \
          patch.object(scanner.socket, "create_connection", fake_create), \
          patch.object(scanner.ssl, "SSLContext", fake_ssl_ctx_cls), \
          patch.object(scanner.ssl, "create_default_context",

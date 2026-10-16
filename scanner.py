@@ -12,6 +12,7 @@ import json
 import re
 import socket
 import ssl
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -24,6 +25,12 @@ MAX_REDIRECTS = 5
 # target can serve an endless page; the checks never need more than this
 # (script analysis already truncates at 1M chars).
 MAX_BODY_BYTES = 5 * 1024 * 1024
+# Overall per-scan wall-clock budget (seconds). TIMEOUT bounds a single
+# socket operation only; without a scan budget a drip-feeding target can
+# chain per-recv timeouts and hold a worker for many minutes. 90s is far
+# above a legitimate full scan, so a timed-out scan degrades to "skipped"
+# checks instead of a worker held hostage.
+SCAN_DEADLINE = 90
 
 DEDUCT = {"high": 25, "medium": 15, "low": 5, "info": 0}
 
@@ -35,6 +42,39 @@ def _finding(severity, key, title, meaning, fix):
 
 class UnsafeTarget(ValueError):
     """Raised when a scan target is not a public website."""
+
+
+class _DeadlineExceeded(Exception):
+    """The running scan exceeded its SCAN_DEADLINE budget."""
+
+
+_scan_deadline = None  # monotonic deadline of the running scan, if any
+
+
+def _arm_deadline():
+    global _scan_deadline
+    _scan_deadline = time.monotonic() + SCAN_DEADLINE
+
+
+def _disarm_deadline():
+    global _scan_deadline
+    _scan_deadline = None
+
+
+def _check_deadline():
+    if _scan_deadline is not None and time.monotonic() >= _scan_deadline:
+        raise _DeadlineExceeded(
+            "Scan exceeded its overall time budget.")
+
+
+def _open_validated(host):
+    """Open a TCP connection to a resolve-validated public IP — the
+    raw-socket counterpart of _pinned_once for the TLS probes, so a
+    DNS answer that flips between validation and dialling (rebinding)
+    is never connected to. Callers wrap with server_hostname=host, so
+    SNI and certificate verification keep the original hostname."""
+    ip = str(_resolve_public(host)[0])
+    return socket.create_connection((ip, 443), timeout=TIMEOUT)
 
 
 def _resolve_public(host):
@@ -85,11 +125,28 @@ def _is_public_host(host):
         return False
 
 
+def _check_port(parts):
+    """Reject any explicit non-default port. A redirect Location or a
+    page-derived URL must not steer the scanner at arbitrary TCP
+    services on public hosts — only 80 (http) and 443 (https) are
+    web ports."""
+    default = 443 if parts.scheme == "https" else 80
+    try:
+        port = parts.port
+    except ValueError:
+        raise UnsafeTarget("That address has an invalid port.")
+    if port is not None and port != default:
+        raise UnsafeTarget(
+            "Only the standard web ports can be scanned "
+            "(80 for http://, 443 for https://).")
+
+
 def _check_url(url):
     """Validate one URL before we fetch it. Returns normalized URL."""
     parts = urlparse(url)
     if parts.scheme not in ("http", "https"):
         raise UnsafeTarget("Only http:// and https:// addresses can be scanned.")
+    _check_port(parts)
     host = parts.hostname
     if not _is_public_host(host):
         raise UnsafeTarget(
@@ -206,12 +263,11 @@ def _pinned_once(method, url, headers=None):
     parts = urlparse(url)
     if parts.scheme not in ("http", "https"):
         raise UnsafeTarget("Only http:// and https:// addresses can be scanned.")
+    _check_deadline()
     host = parts.hostname
     ips = _resolve_public(host)
-    try:
-        port = parts.port
-    except ValueError:
-        port = None
+    _check_port(parts)
+    port = parts.port
     default_port = 443 if parts.scheme == "https" else 80
     host_header = host if port in (None, default_port) else f"{host}:{port}"
     hdrs = {"Host": host_header, "Connection": "close"}
@@ -233,6 +289,7 @@ def _pinned_once(method, url, headers=None):
         resp = conn.getresponse()
         body = b""
         while len(body) < MAX_BODY_BYTES:
+            _check_deadline()
             chunk = resp.read(min(65536, MAX_BODY_BYTES - len(body)))
             if not chunk:
                 break
@@ -301,6 +358,7 @@ def scan(raw_url):
         url = "https://" + url
     host = urlparse(url).hostname or url
     _check_url(f"https://{host}/")  # reject non-public targets up front
+    _arm_deadline()
     findings = []
     checks = []
 
@@ -417,7 +475,7 @@ def scan(raw_url):
     if https_ok:
         try:
             ctx = ssl.create_default_context()
-            with socket.create_connection((host, 443), timeout=TIMEOUT) as s:
+            with _open_validated(host) as s:
                 with ctx.wrap_socket(s, server_hostname=host) as ss:
                     cert = ss.getpeercert()
             exp = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
@@ -596,7 +654,7 @@ def scan(raw_url):
                 try:
                     _ctx = ssl.SSLContext(_ver)
                     _ctx.verify_mode = ssl.CERT_NONE
-                    with socket.create_connection((host, 443), timeout=TIMEOUT) as _s:
+                    with _open_validated(host) as _s:
                         with _ctx.wrap_socket(_s, server_hostname=host) as _ss:
                             _tls_tested = True
                             if _ss.version() in ('TLSv1', 'TLSv1.1'):
@@ -1321,6 +1379,7 @@ def scan(raw_url):
     order = {"high": 0, "medium": 1, "low": 2, "info": 3}
     findings.sort(key=lambda f: order[f["severity"]])
 
+    _disarm_deadline()
     return {
         "url": host,
         "scanned_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),

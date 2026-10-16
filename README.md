@@ -34,7 +34,12 @@ install Python from there, then double-click `run.bat` again.)
 pip install -r requirements.txt
 python app.py
 ```
-Then open http://127.0.0.1:5050 in a browser.
+Then open http://127.0.0.1:5050 in a browser. The local server listens
+on this computer only (loopback) — the scan endpoints have no login, so
+they are not exposed to your network. To serve other devices on your
+LAN anyway, set the environment variable `SITEGUARD_LAN=1` before
+starting it; anyone on the network can then run scans from your
+machine and IP address.
 
 ## Deploy it (Render, free)
 Push this folder to GitHub, then New -> Web Service on render.com pointing

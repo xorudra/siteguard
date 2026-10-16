@@ -1,4 +1,10 @@
-Flask>=3.0
-requests>=2.31
-gunicorn>=21
-fpdf2>=2.8
+# Exact pins (2026-10-16 security-audit fix): these were floating >=
+# bounds, so any rebuild silently resolved whatever release was newest
+# that day, with no review and no known-good set to roll back to.
+# Versions are the ones the test suite passes against. Hashes are not
+# recorded — they were not generated from the resolved wheels in this
+# environment; the exact pins are the reproducibility control.
+Flask==3.1.3
+requests==2.34.2
+gunicorn==26.2.0
+fpdf2==2.8.9

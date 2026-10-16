@@ -6,6 +6,9 @@
 - C21 response bodies are read under a hard byte cap.
 - A10 the rate limiter keys on the LAST X-Forwarded-For hop (the old
       first-hop keying was client-spoofable) and also covers /poc/pdf.
+      Since the 2026-10-16 audit fix, XFF is honoured only when the
+      deployment trusts its edge (SITEGUARD_TRUST_PROXY=1) — the app
+      tests below opt into that mode explicitly.
 - A2  POST routes reject cross-site Origin/Referer headers.
 - F27/F31 /privacy and /terms pages exist and are linked in footers.
 - D22 --faint text colour meets WCAG AA contrast (>= 4.5:1) on --bg.
@@ -176,9 +179,14 @@ class TestAppWave1(unittest.TestCase):
     def setUp(self):
         sg_app._hits.clear()
         self.client = sg_app.app.test_client()
+        # This class documents the edge-trusted deployment (A10): the
+        # hosted service sets SITEGUARD_TRUST_PROXY=1 behind its edge.
+        self._trust = sg_app.TRUST_PROXY
+        sg_app.TRUST_PROXY = True
 
     def tearDown(self):
         sg_app._hits.clear()
+        sg_app.TRUST_PROXY = self._trust
 
     # --- A10: rate-limit keying ---
     def test_client_ip_uses_last_xff_hop(self):

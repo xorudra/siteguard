@@ -16,6 +16,11 @@ from owasp import owasp_coverage
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+# Cap request bodies (2026-10-16 audit fix): the forms carry a URL plus a
+# signed report payload, so 64 KiB is generous headroom — and without a
+# cap Werkzeug buffers a whole urlencoded body in memory before any
+# route-level check (URL length, consent, signature) gets to run.
+app.config["MAX_CONTENT_LENGTH"] = 64 * 1024
 _poc_signer = URLSafeSerializer(app.secret_key, salt="siteguard-poc")
 
 SEV_COLOR = {"high": "#d33", "medium": "#e80", "low": "#2a7", "info": "#68c"}
@@ -280,8 +285,17 @@ except ImportError:
 
 
 def _pdf_sanitize(s):
-    """Core PDF fonts are latin-1 only — map stray unicode to safe text."""
+    """Core PDF fonts are latin-1 only — map stray unicode to safe text.
+
+    Control characters (CR, LF, the other C0 controls, DEL, C1) are
+    flattened to spaces first: the visitor-supplied name and target-
+    controlled finding titles flow into cell()/multi_cell() of a
+    document labelled "Report status: Final", and an embedded newline
+    would let a crafted name forge extra rendered lines in that
+    trusted report."""
     s = str(s or "")
+    s = "".join(ch if 0x20 <= ord(ch) < 0x7F or ord(ch) >= 0xA0 else " "
+                for ch in s)
     s = (s.replace("\u2014", "-").replace("\u2013", "-")
           .replace("\u201c", '"').replace("\u201d", '"')
           .replace("\u2018", "'").replace("\u2019", "'")
@@ -476,9 +490,22 @@ RATE_LIMIT = 10
 RATE_WINDOW = 3600
 _hits = {}
 
+# X-Forwarded-For is trusted ONLY when the deployment sets
+# SITEGUARD_TRUST_PROXY=1 to state that a real edge sits in front and
+# appends the address it observed (the hosted service behind Caddy
+# sets it). Default off: with no edge — local mode has none at all —
+# the header is purely client-authored and must not mint rate-limit
+# identities.
+TRUST_PROXY = os.environ.get("SITEGUARD_TRUST_PROXY") == "1"
+
 
 def _rate_ok(ip):
     now = time.time()
+    # Lazy sweep: forget identities whose hits have all aged out, so
+    # _hits cannot grow forever with one-visit addresses.
+    for key in [k for k, ts in _hits.items()
+                if not ts or now - ts[-1] >= RATE_WINDOW]:
+        del _hits[key]
     recent = [t for t in _hits.get(ip, []) if now - t < RATE_WINDOW]
     if len(recent) >= RATE_LIMIT:
         _hits[ip] = recent
@@ -489,16 +516,18 @@ def _rate_ok(ip):
 
 
 def _client_ip():
-    """Rate-limit identity: the LAST X-Forwarded-For hop — the address
-    the platform edge (Render) actually observed. Earlier hops are
-    client-supplied and spoofable: keying on the first hop used to let
-    anyone rotate a fake address and scan without limit. Falls back to
-    remote_addr when no XFF header is present."""
-    hops = [h.strip() for h in
-            request.headers.get("X-Forwarded-For", "").split(",")
-            if h.strip()]
-    if hops:
-        return hops[-1]
+    """Rate-limit identity. With SITEGUARD_TRUST_PROXY=1 (hosted, behind
+    a trusted edge): the LAST X-Forwarded-For hop — the address the edge
+    actually observed. Earlier hops are client-supplied and spoofable:
+    keying on the first hop used to let anyone rotate a fake address and
+    scan without limit. Without the flag, XFF is ignored entirely and
+    identity is the connection's remote_addr."""
+    if TRUST_PROXY:
+        hops = [h.strip() for h in
+                request.headers.get("X-Forwarded-For", "").split(",")
+                if h.strip()]
+        if hops:
+            return hops[-1]
     return request.remote_addr or "?"
 
 
@@ -531,6 +560,16 @@ def _not_found(_e):
     or a wrong-method hit gets the branded page with a way back to the
     scanner, not Flask's default plain-text error."""
     return render_template("404.html", code=_e.code or 404), _e.code or 404
+
+
+@app.errorhandler(413)
+def _too_large(_e):
+    """Oversized request body (MAX_CONTENT_LENGTH): same branded page
+    with a plain reason, not Flask's default plain-text error."""
+    return render_template(
+        "index.html",
+        error="That request was too big — please start again "
+              "from the homepage."), 413
 
 
 def _rate_or_429():
@@ -761,4 +800,9 @@ def poc_pdf():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    app.run(host="0.0.0.0", port=port)
+    # Local mode serves the operator's own browser only: bind loopback.
+    # The scan/VAPT endpoints are unauthenticated, so exposing them to
+    # the LAN is an explicit opt-in (SITEGUARD_LAN=1), never the default.
+    host = ("0.0.0.0" if os.environ.get("SITEGUARD_LAN") == "1"
+            else "127.0.0.1")
+    app.run(host=host, port=port)

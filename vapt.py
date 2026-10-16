@@ -19,7 +19,9 @@ from scanner import (
     DEDUCT,
     UA,
     UnsafeTarget,  # noqa: F401  (re-exported so app.py can catch it)
+    _arm_deadline,
     _check_url,
+    _disarm_deadline,
     _finding,
     _request,
     _safe_get,
@@ -90,6 +92,7 @@ def vapt_scan(raw_url):
         url = "https://" + url
     host = urlparse(url).hostname or url
     _check_url(f"https://{host}/")  # reject non-public targets up front
+    _arm_deadline()
     base = f"https://{host}"
 
     score = 100
@@ -306,6 +309,7 @@ def vapt_scan(raw_url):
 
     grade = ("A" if score >= 90 else "B" if score >= 75
              else "C" if score >= 60 else "D" if score >= 40 else "F")
+    _disarm_deadline()
     return {"url": host,
             "scanned_at": datetime.now(timezone.utc).strftime(
                 "%Y-%m-%d %H:%M UTC"),
