@@ -75,6 +75,55 @@ def _check_deadline():
             "Scan exceeded its overall time budget.")
 
 
+def _op_timeout():
+    """Timeout for the NEXT single socket operation: TIMEOUT, shrunk to
+    the scan's remaining budget when a deadline is armed — so a pending
+    recv wakes at the deadline instead of a full TIMEOUT past it."""
+    d = getattr(_scan_state, "deadline", None)
+    if d is None:
+        return TIMEOUT
+    return max(0.05, min(TIMEOUT, d - time.monotonic()))
+
+
+class _DeadlineSocket:
+    """Socket wrapper enforcing the scan deadline DURING a fetch
+    (2026-10-17 run-5 fix).
+
+    _check_deadline() used to run only before a fetch and between body
+    chunks, so a target dripping response HEADERS at just under the
+    per-recv TIMEOUT could hold a fetch — and its worker — far past
+    the deadline (measured: 162 s against a 90 s budget, past the
+    120 s worker kill). Every recv through this wrapper first checks
+    the deadline (raising _DeadlineExceeded once it has passed) and
+    then shrinks the socket timeout to the remaining budget, so the
+    header phase is bounded by the same budget as everything else.
+    """
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def _tick(self):
+        _check_deadline()
+        self._raw.settimeout(_op_timeout())
+
+    def recv(self, n, flags=0):
+        self._tick()
+        return self._raw.recv(n, flags)
+
+    def recv_into(self, buf, nbytes=0, flags=0):
+        self._tick()
+        return self._raw.recv_into(buf, nbytes, flags)
+
+    def makefile(self, mode="rb", buffering=None, **kw):
+        # http.client reads the response through sock.makefile(); it
+        # must go through this wrapper, not the raw socket's file.
+        import io as _io
+        return _io.BufferedReader(socket.SocketIO(self, "rb"))
+
+    def __getattr__(self, name):
+        return getattr(self._raw, name)
+
+
 def _open_validated(host):
     """Open a TCP connection to a resolve-validated public IP — the
     raw-socket counterpart of _pinned_once for the TLS probes, so a
@@ -235,6 +284,7 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         if self._tunnel_host:
             self._tunnel()
+        self.sock = _DeadlineSocket(self.sock)
 
 
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
@@ -255,7 +305,8 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
             self._tunnel()
             raw = self.sock
         context = self._context or ssl.create_default_context()
-        self.sock = context.wrap_socket(raw, server_hostname=self._sg_sni)
+        self.sock = _DeadlineSocket(
+            context.wrap_socket(raw, server_hostname=self._sg_sni))
 
 
 def _pinned_once(method, url, headers=None):
@@ -305,6 +356,11 @@ def _pinned_once(method, url, headers=None):
         return _PinnedResponse(resp.status,
                                _CaseInsensitiveHeaders(resp.getheaders()),
                                body, url)
+    except socket.timeout:
+        # A recv that timed out BECAUSE the wrapper shrank it to the
+        # remaining budget is a deadline expiry, not a slow target.
+        _check_deadline()
+        raise
     finally:
         conn.close()
 

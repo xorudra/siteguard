@@ -4,6 +4,8 @@ import ipaddress
 import os
 import secrets
 import sys
+import tempfile
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -632,6 +634,79 @@ def _rate_or_429():
               "and try again."), 429
 
 
+# --- scan concurrency gate (2026-10-17 run-5 fix) ---
+# Production runs 2 sync gunicorn workers — one request per process —
+# so an in-process semaphore cannot stop two slow scans from holding
+# BOTH workers while every other page queues behind them (run-5
+# measurement: GET / waited 98 s behind two slow /vapt scans whose
+# targets dripped responses). Slots are therefore files in the temp
+# dir, held with flock for the length of a scan, shared by every
+# worker process on the host. The default of ONE concurrent scan
+# service-wide always leaves a worker free to serve pages; raise it
+# with SITEGUARD_MAX_CONCURRENT_SCANS on bigger shapes. Without fcntl
+# (Windows local mode — a single process) the gate degrades to a
+# threading semaphore, which still bounds that process.
+try:
+    import fcntl
+except ImportError:  # Windows local mode
+    fcntl = None
+
+try:
+    SCAN_CONCURRENCY = max(
+        1, int(os.environ.get("SITEGUARD_MAX_CONCURRENT_SCANS", "1")))
+except ValueError:
+    SCAN_CONCURRENCY = 1
+
+
+class _ScanGate:
+    def __init__(self, count):
+        self._count = count
+        self._sem = threading.Semaphore(count)
+
+    def acquire(self):
+        """Take a slot without blocking; returns a token or None."""
+        if fcntl is None:
+            return ("thread", None) if self._sem.acquire(
+                blocking=False) else None
+        for i in range(self._count):
+            path = os.path.join(tempfile.gettempdir(),
+                                f"siteguard-scan-slot-{i}.lock")
+            fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                os.close(fd)
+                continue
+            return ("file", fd)
+        return None
+
+    def release(self, token):
+        kind, fd = token
+        if kind == "thread":
+            self._sem.release()
+            return
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+_scan_gate = _ScanGate(SCAN_CONCURRENCY)
+
+
+def _busy_response(url=""):
+    """429 for 'a scan is already running' — distinct from the rate
+    limiter's 429: capacity, not caller behaviour."""
+    resp = Response(
+        render_template(
+            "index.html", url=url,
+            error="The scanner is busy with another scan right now — "
+                  "please try again in a few seconds."),
+        status=429, content_type="text/html")
+    resp.headers["Retry-After"] = "30"
+    return resp
+
+
 # --- G33 caching: the only cacheable responses are the public GET
 # pages (identical for every visitor). Everything else — POST results,
 # error pages — is per-request and never marked publicly cacheable.
@@ -711,6 +786,9 @@ def do_scan():
         return render_template("index.html", url=url,
                                error="That address looks too long to be real.")
 
+    slot = _scan_gate.acquire()
+    if slot is None:
+        return _busy_response(url)
     try:
         report = scan(url)
     except UnsafeTarget as e:
@@ -719,6 +797,8 @@ def do_scan():
         return render_template(
             "index.html", url=url,
             error="Could not scan that site — check the address and try again.")
+    finally:
+        _scan_gate.release(slot)
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
                            grade_color=GRADE_COLOR[report["grade"]],
@@ -776,6 +856,9 @@ def do_vapt():
             error="Please tick the permission box — VAPT tests may only run "
                   "against sites you own or have permission to test.")
 
+    slot = _scan_gate.acquire()
+    if slot is None:
+        return _busy_response(url)
     try:
         # VAPT mode = full passive scan + 6 active tests, merged into one
         # report. Both scans raise UnsafeTarget for non-public targets.
@@ -792,6 +875,8 @@ def do_vapt():
         return render_template(
             "index.html", url=url,
             error="Could not scan that site — check the address and try again.")
+    finally:
+        _scan_gate.release(slot)
     report = _merge_reports(passive, active)
     return render_template("report.html", r=report,
                            sev_color=SEV_COLOR, sev_label=SEV_LABEL,
