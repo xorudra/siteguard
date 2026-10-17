@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """SiteGuard web app — enter a URL, get a website security report."""
 import ipaddress
+import json
 import os
 import secrets
 import sys
@@ -506,10 +507,55 @@ def _build_poc_pdf(report, name, details):
         "permission to test."), new_x="LMARGIN", new_y="NEXT", align="L")
     return bytes(pdf.output())
 
-# --- simple in-memory rate limiting: 10 scans / hour per IP ---
+# --- rate limiting: 10 scans / hour per IP, flat across all workers ---
+# The limit has always been documented as 10/hour/IP, but hit counts
+# lived in one in-process dict per gunicorn worker, so the effective
+# limit was 10 x however many workers the deployment ran (owner
+# ruling 2026-10-17: make it a true flat 10). Counts now sync through
+# one small state file shared by every worker process on the host —
+# same limit, same window, same routes; only the storage moved (the
+# flock-file pattern _ScanGate below already uses). When the file
+# cannot be used — no fcntl (Windows local mode, a single process,
+# where in-process IS service-wide) or the file errors — the limiter
+# degrades to the in-process dict rather than failing requests.
+try:
+    import fcntl
+except ImportError:  # Windows local mode
+    fcntl = None
+
 RATE_LIMIT = 10
 RATE_WINDOW = 3600
-_hits = {}
+_RATE_STATE_FILE = os.environ.get(
+    "SITEGUARD_RATE_STATE_FILE",
+    os.path.join(tempfile.gettempdir(), "siteguard-rate-hits.json"))
+
+
+def _reset_rate_state():
+    """Empty the shared state file (best effort, never raises)."""
+    try:
+        fd = os.open(_RATE_STATE_FILE, os.O_CREAT | os.O_RDWR, 0o600)
+    except OSError:
+        return
+    try:
+        if fcntl is not None:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+        os.ftruncate(fd, 0)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+class _Hits(dict):
+    """In-process mirror of the shared hit table. clear() also resets
+    the shared file, so clearing the table clears it for every worker
+    on the host, not just this process."""
+    def clear(self):
+        super().clear()
+        _reset_rate_state()
+
+
+_hits = _Hits()
 
 # X-Forwarded-For is trusted ONLY when the deployment sets
 # SITEGUARD_TRUST_PROXY=1 to state that a real edge sits in front and
@@ -520,20 +566,61 @@ _hits = {}
 TRUST_PROXY = os.environ.get("SITEGUARD_TRUST_PROXY") == "1"
 
 
-def _rate_ok(ip):
-    now = time.time()
-    # Lazy sweep: forget identities whose hits have all aged out, so
-    # _hits cannot grow forever with one-visit addresses.
-    for key in [k for k, ts in _hits.items()
+def _allow(state, ip, now):
+    """The limiter itself, on a plain {ip: [timestamps]} dict.
+    Lazy sweep: forget identities whose hits have all aged out, so
+    the table cannot grow forever with one-visit addresses."""
+    for key in [k for k, ts in state.items()
                 if not ts or now - ts[-1] >= RATE_WINDOW]:
-        del _hits[key]
-    recent = [t for t in _hits.get(ip, []) if now - t < RATE_WINDOW]
+        del state[key]
+    recent = [t for t in state.get(ip, []) if now - t < RATE_WINDOW]
     if len(recent) >= RATE_LIMIT:
-        _hits[ip] = recent
+        state[ip] = recent
         return False
     recent.append(now)
-    _hits[ip] = recent
+    state[ip] = recent
     return True
+
+
+def _rate_ok_shared(ip, now):
+    """_allow against the shared state file, under flock, so all
+    worker processes count together. Returns (allowed, new state)."""
+    fd = os.open(_RATE_STATE_FILE, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        raw = b""
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            raw += chunk
+        try:
+            state = json.loads(raw) if raw.strip() else {}
+        except ValueError:
+            state = {}
+        if not isinstance(state, dict):
+            state = {}
+        ok = _allow(state, ip, now)
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.ftruncate(fd, 0)
+        os.write(fd, json.dumps(state).encode())
+        return ok, state
+    finally:
+        os.close(fd)
+
+
+def _rate_ok(ip):
+    now = time.time()
+    if fcntl is not None:
+        try:
+            ok, state = _rate_ok_shared(ip, now)
+        except OSError:
+            pass  # state file unusable: degrade to in-process below
+        else:
+            dict.clear(_hits)
+            _hits.update(state)
+            return ok
+    return _allow(_hits, ip, now)
 
 
 def _client_ip():
@@ -645,12 +732,8 @@ def _rate_or_429():
 # service-wide always leaves a worker free to serve pages; raise it
 # with SITEGUARD_MAX_CONCURRENT_SCANS on bigger shapes. Without fcntl
 # (Windows local mode — a single process) the gate degrades to a
-# threading semaphore, which still bounds that process.
-try:
-    import fcntl
-except ImportError:  # Windows local mode
-    fcntl = None
-
+# threading semaphore, which still bounds that process. (fcntl itself
+# is imported once, above the rate limiter.)
 try:
     SCAN_CONCURRENCY = max(
         1, int(os.environ.get("SITEGUARD_MAX_CONCURRENT_SCANS", "1")))

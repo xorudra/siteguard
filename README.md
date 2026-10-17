@@ -75,6 +75,8 @@ simple explanation of what it means and how to fix it. Score starts at 100, dedu
 - **SSRF guard**: only public websites can be scanned. Private IPs,
   localhost, link-local (incl. cloud metadata 169.254.169.254) are rejected,
   and every redirect hop is re-checked.
-- **Rate limiting**: 10 scans/hour per IP, in-memory.
+- **Rate limiting**: 10 scans/hour per IP, flat across all server
+  workers (hit counts are shared via a small state file, not kept
+  per-process).
 - **Security headers** on our own pages (nosniff, no framing, no referrer).
 - Scan errors never leak internal details to the visitor.

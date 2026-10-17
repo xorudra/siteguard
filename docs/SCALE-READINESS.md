@@ -14,9 +14,12 @@ this shapes every answer below.
   generated env var in `render.yaml`: without it, each worker would
   sign with its own random key and PoC requests would fail randomly
   across workers.
-- The only in-memory state is the per-IP scan rate limiter
-  (`app.py: _hits`). It is a safety control, not user state: losing
-  it on restart just resets the hour window.
+- The per-IP scan rate limiter (`app.py: _hits`) keeps its hit
+  timestamps in one small flock-guarded state file shared by every
+  worker on the host, so the documented 10 scans/hour/IP is a flat
+  service-wide limit, not 10 x workers (owner ruling 2026-10-17).
+  It is a safety control, not user state: losing the file just
+  resets the hour window.
 
 ## Database / connection pooler
 
