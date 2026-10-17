@@ -265,11 +265,16 @@ class TestAppAuditFixes(unittest.TestCase):
             self.assertEqual(r.status_code, 429)
 
     # --- local launch bind ---
-    def test_local_launch_binds_loopback_unless_opted_in(self):
+    def test_local_launch_binds_loopback_always(self):
+        # Owner ruling 2026-10-17: the SITEGUARD_LAN=1 opt-in that
+        # bound 0.0.0.0 and shared the unauthenticated scanner with
+        # the whole LAN was removed entirely. Local mode is loopback
+        # only, and no env var re-opens it.
         with open(os.path.join(ROOT, "app.py")) as fh:
             main_block = fh.read().split('if __name__', 1)[1]
         self.assertIn("127.0.0.1", main_block)
-        self.assertIn("SITEGUARD_LAN", main_block)
+        self.assertNotIn("SITEGUARD_LAN", main_block)
+        self.assertNotIn("0.0.0.0", main_block)
 
 
 if __name__ == "__main__":

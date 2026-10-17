@@ -1026,19 +1026,9 @@ def poc_pdf():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5050))
-    # Local mode serves the operator's own browser only: bind loopback.
-    # The scan/VAPT endpoints are unauthenticated, so exposing them to
-    # the LAN is an explicit opt-in (SITEGUARD_LAN=1), never the default.
-    host = ("0.0.0.0" if os.environ.get("SITEGUARD_LAN") == "1"
-            else "127.0.0.1")
-    if host == "0.0.0.0":
-        # Loud, every launch (2026-10-16 run-2 fix): an inherited
-        # SITEGUARD_LAN=1 must never widen the bind silently.
-        print("=" * 60)
-        print("WARNING: SiteGuard is listening on ALL network interfaces")
-        print(f"(SITEGUARD_LAN=1, port {port}). Anyone on your network can")
-        print("run scans from this machine and its IP address — the scan")
-        print("endpoints have no login. Unset SITEGUARD_LAN to go back to")
-        print("this-computer-only mode.")
-        print("=" * 60)
-    app.run(host=host, port=port)
+    # Local mode serves the operator's own browser only: bind loopback,
+    # always. The scan/VAPT endpoints are unauthenticated, so they are
+    # never exposed to the LAN (owner ruling 2026-10-17: the former
+    # LAN opt-in that bound all interfaces was removed entirely —
+    # there is no env var that widens this bind).
+    app.run(host="127.0.0.1", port=port)
