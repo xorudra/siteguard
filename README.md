@@ -9,6 +9,15 @@ be turned into a personalized Proof of Concept report — just enter your name
 on the results page. Every report also maps your results against the
 OWASP Top 10, honestly marking what can and can't be tested from outside.
 
+
+## 🧊 3D Architecture
+
+![SiteGuard architecture in 3D](docs/3d/architecture.gif)
+
+You enter a URL and the app runs 39 passive checks plus, if you tick the permission box, 9 active VAPT tests. An SSRF guard and a 10-scans-per-hour limit keep it honest, and every finding comes back as a 0–100 score, an A–F grade, an OWASP mapping and a plain-words fix.
+
+**Interactive:** open [`docs/3d/index.html`](docs/3d/index.html) in a browser — drag to orbit, scroll to zoom.
+
 ## Roadmap
 - More checks, continuously — the goal is to catch every bug a site has.
 
