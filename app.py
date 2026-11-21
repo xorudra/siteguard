@@ -899,10 +899,10 @@ def do_scan():
 <title>Reports — deep scan only</title></head>
 <body style="font-family:system-ui,sans-serif;background:#0b0b0c;color:#f2f0ea;padding:40px 20px;max-width:560px;margin:0 auto">
 <h1 style="font-family:Georgia,serif;font-weight:500">Reports are part of the deep scan.</h1>
-<p style="color:#b9b5aa;line-height:1.6">Free Scan gives you the result — score, grade and
+<p style="color:#b9b5aa;line-height:1.6">This scan gives you the result — score, grade and
 findings — right on the home page. The full report, with coverage detail and
 proof of concept, is what the paid ZeroSweep deep scan produces.</p>
-<p><a style="color:#c6f432" href="https://zerosweep.dpdns.org/">Back to Free Scan</a></p>
+<p><a style="color:#c6f432" href="https://zerosweep.dpdns.org/">Back to the scan</a></p>
 </body></html>""", 410)
 
 
@@ -1064,7 +1064,7 @@ def _poc_retired():
 <title>Proof of Concept — deep scan only</title></head>
 <body style="font-family:system-ui,sans-serif;background:#0b0b0c;color:#f2f0ea;padding:40px 20px;max-width:560px;margin:0 auto">
 <h1 style="font-family:Georgia,serif;font-weight:500">Proof of Concept reports are part of the deep scan.</h1>
-<p style="color:#b9b5aa;line-height:1.6">The free scan shows what is wrong. Proving it — a working
+<p style="color:#b9b5aa;line-height:1.6">The surface scan shows what is wrong. Proving it — a working
 proof of concept for every finding — is what the paid ZeroSweep deep scan does.</p>
 <p><a style="color:#c6f432" href="https://zerosweep.dpdns.org/">Get the deep scan on ZeroSweep</a></p>
 </body></html>""", 410)
