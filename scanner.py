@@ -7,6 +7,7 @@ Only scans the domain the user asked for. HTTP-level checks only.
 """
 import base64
 import http.client
+from html.parser import HTMLParser
 import ipaddress
 import json
 import re
@@ -115,13 +116,68 @@ class _DeadlineSocket:
         return self._raw.recv_into(buf, nbytes, flags)
 
     def makefile(self, mode="rb", buffering=None, **kw):
-        # http.client reads the response through sock.makefile(); it
-        # must go through this wrapper, not the raw socket's file.
-        import io as _io
-        return _io.BufferedReader(socket.SocketIO(self, "rb"))
+        # http.client reads the response through sock.makefile(). The
+        # reads must tick per operation (the run-5 header-drip fix),
+        # but they must NOT go through a SocketIO around this wrapper:
+        # on Python 3.12 that kills the TLS socket's descriptor
+        # mid-body and the next tick's settimeout raises OSError
+        # EBADF — which the scan layer misread as "the site has no
+        # working HTTPS" (found live 2026-11-21: every HTTPS scan
+        # degraded to the http fallback with ~20 checks skipped).
+        # So: wrap the RAW socket's own file in a reader that ticks
+        # (check deadline + shrink the raw timeout) before each read
+        # and otherwise delegates untouched.
+        return _DeadlineReader(self._raw.makefile(mode, buffering, **kw),
+                               self)
 
     def __getattr__(self, name):
         return getattr(self._raw, name)
+
+
+class _DeadlineReader:
+    """File-like wrapper over a socket's makefile() object that runs
+    the owning _DeadlineSocket's tick before every read, preserving
+    the per-operation deadline enforcement without ever interposing
+    a non-socket object between http.client and the real socket."""
+
+    def __init__(self, raw_file, owner):
+        self._file = raw_file
+        self._owner = owner
+
+    def _tick(self):
+        self._owner._tick()
+
+    def read(self, n=-1):
+        self._tick()
+        return self._file.read(n)
+
+    def read1(self, n=-1):
+        self._tick()
+        return self._file.read1(n)
+
+    def readline(self, n=-1):
+        self._tick()
+        return self._file.readline(n)
+
+    def readinto(self, buf):
+        self._tick()
+        return self._file.readinto(buf)
+
+    def readinto1(self, buf):
+        self._tick()
+        return self._file.readinto1(buf)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        line = self.readline()
+        if not line:
+            raise StopIteration
+        return line
+
+    def __getattr__(self, name):
+        return getattr(self._file, name)
 
 
 def _open_validated(host):
@@ -859,12 +915,29 @@ def scan(raw_url):
 
     # 24. Sensitive admin/debug paths directly reachable (OWASP A01)
     try:
-        _admin_paths = ["/server-status", "/server-info", "/phpinfo.php",
-                        "/.DS_Store"]
+        # A bare 200 is NOT proof: catch-all sites (SPAs, GitHub's
+        # fallback pages) answer 200 for every path. Each path must
+        # also carry its own unmistakable content markers — the same
+        # standard check 26 already used for phpinfo (2026-11-21:
+        # github.com answered 200 on /server-status with a generic
+        # page and this check cried wolf).
+        _admin_markers = {
+            "/server-status": ("apache status", "server uptime",
+                               "total accesses"),
+            "/server-info": ("apache server information",),
+            "/phpinfo.php": ("phpinfo()", "php version"),
+        }
         _exposed = []
-        for _p in _admin_paths:
+        for _p in ("/server-status", "/server-info", "/phpinfo.php",
+                   "/.DS_Store"):
             _r = _safe_get(f"https://{host}{_p}", follow=False)
-            if _r.status_code == 200 and len(_r.content) > 200:
+            if _r.status_code != 200 or len(_r.content) <= 200:
+                continue
+            if _p == "/.DS_Store":
+                if b"Bud1" in _r.content[:64]:
+                    _exposed.append(_p)
+            elif any(_m in _r.text.lower()
+                     for _m in _admin_markers[_p]):
                 _exposed.append(_p)
         if _exposed:
             _record("Sensitive admin paths hidden", "failed")
@@ -930,8 +1003,9 @@ def scan(raw_url):
     try:
         _r = _get(f"https://{host}/server-status")
         if (_r.status_code == 200
-                and ('apache status' in _r.text.lower()
-                     or 'server-status' in _r.text.lower())):
+                and any(_m in _r.text.lower() for _m in
+                        ('apache status', 'server uptime',
+                         'total accesses'))):
             _record("Server status page exposed", "failed")
             findings.append(_finding(
                 "medium", "server-status",
@@ -1275,7 +1349,41 @@ def scan(raw_url):
     # 36. Legal pages actually customised + complete — template
     # placeholders ([Company Name], lorem ipsum, {{...}}) are the
     # copy-paste tell, and a 3-line terms page protects nobody.
-    _legal_all = (_privacy_text + "\n" + _terms_text)
+    # Judge the VISIBLE text only: the raw page source is full of
+    # {{...}} JSON and [bracketed] markup on perfectly real legal
+    # pages (github.com false-positived on this, 2026-11-21).
+    def _visible_text(_html):
+        # Real parser, not regex: template elements NEST on real
+        # pages, and a regex stripper leaves the inner template's
+        # {{...}} behind (github.com's flash-alert template).
+        class _TextGrab(HTMLParser):
+            _SKIP = {"script", "style", "noscript", "template"}
+
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.parts = []
+                self._skip = 0
+
+            def handle_starttag(self, tag, attrs):
+                if tag in self._SKIP:
+                    self._skip += 1
+
+            def handle_endtag(self, tag):
+                if tag in self._SKIP and self._skip:
+                    self._skip -= 1
+
+            def handle_data(self, data):
+                if not self._skip:
+                    self.parts.append(data)
+
+        _g = _TextGrab()
+        try:
+            _g.feed(_html or "")
+        except Exception:
+            return _html or ""
+        return " ".join(_g.parts)
+
+    _legal_all = _visible_text(_privacy_text + "\n" + _terms_text)
     if not _legal_all.strip():
         _record("Legal pages customised and complete", "skipped")
     else:
@@ -1299,7 +1407,7 @@ def scan(raw_url):
                 "markers and filler text, and replace every one with "
                 "your real business name, address and details."))
         elif _terms_text:
-            _tl = _terms_text.lower()
+            _tl = _visible_text(_terms_text).lower()
             _groups = {
                 "billing/subscriptions": ("billing", "subscription",
                                           "payment", "price"),

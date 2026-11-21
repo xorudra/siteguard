@@ -88,8 +88,16 @@ def run_scan(base_headers=None, set_cookies=GOOD_COOKIES,
             return FakeResponse(404)
         if any(url.endswith(p) for p in ("/server-status", "/server-info",
                                          "/phpinfo.php", "/.DS_Store")):
+            _bodies = {
+                "/server-status": "Apache Server Status\nServer uptime: 3 days\n" + "x" * 300,
+                "/server-info": "Apache Server Information\n" + "x" * 300,
+                "/phpinfo.php": "phpinfo() PHP Version 8.2\n" + "x" * 300,
+                "/.DS_Store": "Bud1" + "x" * 500,
+            }
+            _body = next((_b for _p, _b in _bodies.items()
+                          if url.endswith(_p)), "")
             return FakeResponse(admin_status,
-                                text="x" * 500 if admin_status == 200 else "")
+                                text=_body if admin_status == 200 else "")
         if url.endswith("/.well-known/security.txt"):
             return FakeResponse(security_txt)
         if url.endswith("/robots.txt"):
