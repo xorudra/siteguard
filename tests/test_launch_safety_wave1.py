@@ -221,9 +221,11 @@ class TestAppWave1(unittest.TestCase):
         self.assertEqual(r.status_code, 429)
 
     def test_poc_and_pdf_are_rate_limited(self):
+        # /poc is retired (410 since 2026-11-21) but the rate limit
+        # still applies before the gate.
         for _ in range(sg_app.RATE_LIMIT):
             r = self.client.post("/poc", data={})
-            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.status_code, 410)
         r = self.client.post("/poc", data={})
         self.assertEqual(r.status_code, 429)
 

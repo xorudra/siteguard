@@ -1067,59 +1067,31 @@ def do_vapt():
                            owasp=owasp_coverage(report))
 
 
-@app.route("/poc", methods=["POST"])
-def make_poc():
+def _poc_retired():
+    """PoC reports left the free tier (owner order 2026-11-21): proof
+    of concept is part of the paid ZeroSweep deep scan. The rate limit
+    still applies first — these endpoints keep their abuse limits."""
     limited = _rate_or_429()
     if limited is not None:
         return limited
-    name = (request.form.get("name") or "").strip()[:80]
-    report = _load_report(request.form.get("payload", ""))
+    return ("""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>Proof of Concept — deep scan only</title></head>
+<body style="font-family:system-ui,sans-serif;background:#0b0b0c;color:#f2f0ea;padding:40px 20px;max-width:560px;margin:0 auto">
+<h1 style="font-family:Georgia,serif;font-weight:500">Proof of Concept reports are part of the deep scan.</h1>
+<p style="color:#b9b5aa;line-height:1.6">The free scan shows what is wrong. Proving it — a working
+proof of concept for every finding — is what the paid ZeroSweep deep scan does.</p>
+<p><a style="color:#c6f432" href="https://zerosweep.dpdns.org/">Get the deep scan on ZeroSweep</a></p>
+</body></html>""", 410)
 
-    def _report_page(r, payload, poc_error=None, poc_name=""):
-        return render_template("report.html", r=r,
-                               sev_color=SEV_COLOR, sev_label=SEV_LABEL,
-                               grade_color=GRADE_COLOR[r["grade"]],
-                               poc_payload=payload, poc_error=poc_error,
-                               poc_name=poc_name,
-                               mode=r.get("mode"),
-                               owasp=owasp_coverage(r))
 
-    if not report:
-        return render_template(
-            "index.html",
-            error="That report expired or was changed — please scan the site again.")
-    payload = request.form.get("payload", "")
-    if not name:
-        return _report_page(report, payload,
-                            "Please enter your name for the PoC report.",
-                            poc_name=name)
-    if not report["findings"]:
-        return _report_page(report, payload)
-
-    details = _poc_details(report)
-    return render_template("poc.html", r=report, name=name, details=details,
-                           payload=payload,
-                           sev_color=SEV_COLOR, sev_label=SEV_LABEL,
-                           grade_color=GRADE_COLOR[report["grade"]])
+@app.route("/poc", methods=["POST"])
+def make_poc():
+    return _poc_retired()
 
 
 @app.route("/poc/pdf", methods=["POST"])
 def poc_pdf():
-    """Downloadable PoC PDF generated server-side with no embedded fonts."""
-    limited = _rate_or_429()
-    if limited is not None:
-        return limited
-    if not _HAVE_FPDF:
-        return "PDF download is temporarily unavailable.", 503
-    name = (request.form.get("name") or "").strip()[:80]
-    report = _load_report(request.form.get("payload", ""))
-    if not report or not name or not report["findings"]:
-        return render_template(
-            "index.html",
-            error="That report expired or was changed — please scan the site again.")
-    data = _build_poc_pdf(report, name, _poc_details(report))
-    return Response(data, mimetype="application/pdf", headers={
-        "Content-Disposition": "attachment; filename=siteguard-poc.pdf"})
+    return _poc_retired()
 
 
 if __name__ == "__main__":

@@ -176,12 +176,13 @@ class TestReportHonesty(unittest.TestCase):
         self.assertIn("(skipped)", html)
 
     def test_poc_page_marks_partial(self):
+        # PoC left the free tier 2026-11-21 (owner order): the route
+        # now answers 410 with the deep-scan pitch, partial or not.
         payload = sg_app._sign_report(_partial_report())
         r = self.client.post("/poc", data={"payload": payload,
                                            "name": "Rudra"})
-        html = r.get_data(as_text=True)
-        self.assertIn("Final (partial scan)", html)
-        self.assertIn("Partial scan:", html)
+        self.assertEqual(r.status_code, 410)
+        self.assertIn("deep scan", r.get_data(as_text=True))
 
     # --- run-3 confirmed residual: the grade element itself ---
     def test_grade_elements_carry_the_partial_qualifier(self):
@@ -192,12 +193,11 @@ class TestReportHonesty(unittest.TestCase):
         # The ring's accessible name and visible caption are qualified.
         self.assertIn("partial scan, 2 checks skipped", html)
         self.assertIn('<div class="gp">partial</div>', html)
-        # The PoC cover's grade line is qualified too.
+        # The PoC route itself is retired (410) since 2026-11-21.
         payload = sg_app._sign_report(_partial_report())
         r = self.client.post("/poc", data={"payload": payload,
                                            "name": "Rudra"})
-        self.assertIn("&middot; partial scan",
-                      r.get_data(as_text=True))
+        self.assertEqual(r.status_code, 410)
 
     def test_grade_elements_unqualified_when_complete(self):
         report = _partial_report()

@@ -33,7 +33,7 @@ class TestFunnel(unittest.TestCase):
 
     def test_report_links_to_zerosweep(self):
         html = self.render(fake_report())
-        self.assertIn("Want the deep scan?", html)
+        self.assertIn("Deep scan · Invite only", html)
         self.assertIn(
             'href="https://zerosweep.dpdns.org/">Get the deep scan', html)
 
