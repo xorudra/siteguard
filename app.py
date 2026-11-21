@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, Response, render_template, request
+from flask import Flask, Response, jsonify, render_template, request
 from itsdangerous import BadSignature, URLSafeSerializer
 from scanner import DEDUCT, scan, UnsafeTarget
 from vapt import vapt_scan
@@ -639,16 +639,28 @@ def _client_ip():
     return request.remote_addr or "?"
 
 
+# The funnel partner (owner decision 2026-11-21): ZeroSweep's home page
+# IS the free check, so its scan form posts here cross-site by design.
+# Only the two scan endpoints accept that origin; every other POST route
+# stays same-host only, and every other cross-site origin stays refused.
+PARTNER_ORIGIN = "https://zerosweep.dpdns.org"
+PARTNER_PATHS = ("/scan", "/api/scan")
+
+
 def _origin_ok():
     """CSRF guard for form posts (Launch Safety Standard A2): when a
     browser sends an Origin (or Referer) header, it must name THIS
     host. Non-browser clients send neither and pass — the check only
-    stops cross-site browser form submissions."""
+    stops cross-site browser form submissions. One named exception:
+    the ZeroSweep funnel origin, on the scan endpoints only."""
     origin = (request.headers.get("Origin")
               or request.headers.get("Referer"))
     if not origin:
         return True
-    return urlparse(origin).netloc == request.host
+    if urlparse(origin).netloc == request.host:
+        return True
+    return (request.path in PARTNER_PATHS
+            and origin.rstrip("/") == PARTNER_ORIGIN)
 
 
 def _host_is_local():
@@ -906,6 +918,72 @@ def do_scan():
                            grade_color=GRADE_COLOR[report["grade"]],
                            poc_payload=_sign_report(report),
                            owasp=owasp_coverage(report))
+
+
+def _scan_json(payload, status=200):
+    """JSON answer for /api/scan. The ZeroSweep home page fetches this
+    cross-site (the funnel), so the partner origin gets a CORS header;
+    no other origin does."""
+    resp = jsonify(payload)
+    resp.status_code = status
+    if request.headers.get("Origin") == PARTNER_ORIGIN:
+        resp.headers["Access-Control-Allow-Origin"] = PARTNER_ORIGIN
+        resp.headers["Vary"] = "Origin"
+    return resp
+
+
+@app.route("/api/scan", methods=["POST"])
+def api_scan():
+    """The free check as JSON: same rate limit, scan gate and scanner
+    as /scan, but the result fills the result card on the home page
+    itself (SiteGuard's own page, or ZeroSweep's — the funnel home)
+    instead of navigating to the report page. The full report + PoC
+    still live behind the classic /scan POST."""
+    limited = _rate_or_429()
+    if limited is not None:
+        return _scan_json(
+            {"error": "Too many scans from this connection — "
+                      "please wait a bit and try again."}, 429)
+
+    url = (request.form.get("url") or "").strip()
+    if not url:
+        return _scan_json({"error": "Please enter a website address."}, 400)
+    if len(url) > 253:
+        return _scan_json(
+            {"error": "That address looks too long to be real."}, 400)
+
+    slot = _scan_gate.acquire()
+    if slot is None:
+        return _scan_json(
+            {"error": "The scanner is busy with another scan right now — "
+                      "please try again in a few seconds."}, 429)
+    try:
+        report = scan(url)
+    except UnsafeTarget as e:
+        return _scan_json({"error": str(e)}, 400)
+    except Exception:
+        return _scan_json(
+            {"error": "Could not scan that site — check the address "
+                      "and try again."}, 502)
+    finally:
+        _scan_gate.release(slot)
+
+    checks = report["checks"]
+    return _scan_json({
+        "url": report["url"],
+        "score": report["score"],
+        "grade": report["grade"],
+        "complete": report["complete"],
+        "skipped": report["skipped"],
+        "total": len(checks),
+        "passed": sum(1 for c in checks if c["status"] == "passed"),
+        "failed": sum(1 for c in checks if c["status"] == "failed"),
+        "findings": [
+            {"title": f["title"], "key": f["key"],
+             "severity": f["severity"], "label": SEV_LABEL[f["severity"]]}
+            for f in report["findings"]
+        ],
+    })
 
 
 def _merge_reports(passive, active):

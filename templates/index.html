@@ -42,6 +42,15 @@
   @keyframes slide { 0% { margin-left: -38% } 100% { margin-left: 100% } }
   .spin p { color: rgba(255,255,255,0.55); font-size: 12.5px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .micro { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; letter-spacing: 0.08em; color: var(--faint); margin-top: 16px; line-height: 1.7; }
+  .micro .seg { white-space: nowrap; }
+  .micro .sep { margin: 0 7px; }
+  .rc-empty { color: #6d6a61; font-size: 14px; line-height: 1.6; padding: 26px 0 20px; }
+  .rc-error { color: #b3261e; font-size: 14px; font-weight: 600; line-height: 1.55; padding: 20px 0 14px; }
+  .rc-stats { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(11,11,12,0.08); }
+  .rc-stats .n { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+  .rc-stats .l { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 9.5px; letter-spacing: 0.12em; color: #6d6a61; margin-top: 3px; }
+  .rc-report { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(11,11,12,0.08); }
+  .rc-report button { background: #0b0b0c; color: #fff; border: 0; border-radius: 999px; font-size: 13px; font-weight: 700; padding: 11px 20px; cursor: pointer; min-height: 44px; }
   .stats { display: flex; gap: 34px; margin-top: auto; padding-top: 34px; flex-wrap: wrap; }
   .stat .n { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: #fff; }
   .stat .l { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; color: var(--faint); margin-top: 4px; }
@@ -99,7 +108,7 @@
     .grid { grid-template-columns: repeat(2, 1fr); }
     .topbar { padding: 14px 14px 4px; }
     /* between band, compact: stats in one tight 4-across row */
-    .stats { display: flex; justify-content: space-between; gap: 10px; margin-top: 18px; padding-top: 0; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; padding-top: 0; }
     .stat .n { font-size: 20px; }
     .stat .l { font-size: 9px; margin-top: 3px; }
     .micro { margin-top: 14px; line-height: 1.6; }
@@ -149,7 +158,7 @@
         <div class="bar"><i></i></div>
         <p>$ siteguard scan --target &hellip; probing 39 checks, about 30 seconds</p>
       </div>
-      <div class="micro">PASSIVE ONLY &nbsp;·&nbsp; SSRF-GUARDED &nbsp;·&nbsp; 10 SCANS/HR PER IP<br>SCORE 0–100 &nbsp;·&nbsp; GRADE A–F</div>
+      <div class="micro"><span class="seg">PASSIVE ONLY</span><span class="sep">·</span><span class="seg">SSRF-GUARDED</span><span class="sep">·</span><span class="seg">10 SCANS/HR PER IP</span><br><span class="seg">SCORE 0–100</span><span class="sep">·</span><span class="seg">GRADE A–F</span></div>
       <div class="stats">
         <div class="stat"><div class="n">39</div><div class="l">CHECKS</div></div>
         <div class="stat"><div class="n">~1 min</div><div class="l">PER SCAN</div></div>
@@ -158,26 +167,33 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="resultCard" aria-live="polite">
       <div class="sample-head">
-        <span class="t">SAMPLE RESULT</span><span class="u">example.com</span>
-        <span class="chip-dark">SURFACE ONLY</span>
+        <span class="t">SCAN RESULT</span><span class="u" id="rcUrl"></span>
+        <span class="chip-dark" id="rcChip" hidden>SURFACE ONLY</span>
       </div>
-      <div class="score-row">
-        <div class="score-block">
-          <div class="score-line"><span class="score-num">50</span><span class="grade">Grade F</span></div>
-          <div class="score-cap">/ 100 security score</div>
+      <div class="rc-empty" id="rcEmpty">Nothing here yet. Run a scan above and the real result fills this card.</div>
+      <div class="rc-error" id="rcError" role="alert" hidden></div>
+      <div id="rcBody" hidden>
+        <div class="score-row">
+          <div class="score-block">
+            <div class="score-line"><span class="score-num" id="rcScore"></span><span class="grade" id="rcGrade"></span></div>
+            <div class="score-cap">/ 100 security score</div>
+            <div class="score-cap" id="rcPartial" hidden></div>
+          </div>
         </div>
-        <svg class="spark" width="180" height="44" viewBox="0 0 180 44" fill="none" aria-hidden="true">
-          <polyline points="0,36 24,31 48,34 72,26 96,29 120,20 144,24 168,14 179,16" stroke="#0b0b0c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        <div class="rc-stats">
+          <div><div class="n" id="rcPassed"></div><div class="l">PASSED</div></div>
+          <div><div class="n" id="rcFailed"></div><div class="l">NEED ATTENTION</div></div>
+          <div><div class="n" id="rcSkipped"></div><div class="l">SKIPPED</div></div>
+          <div><div class="n" id="rcTotal"></div><div class="l">CHECKS TOTAL</div></div>
+        </div>
+        <div id="rcFindings"></div>
+        <form class="rc-report" action="/scan" method="post">
+          <input type="hidden" name="url" id="rcReportUrl">
+          <button type="submit">Full report + proof of concept</button>
+        </form>
       </div>
-      <div class="finding first"><div class="f-name">Database readable by the public<small>db.public-access · Database</small></div><span class="chip crit">Fix now</span></div>
-      <div class="finding"><div class="f-name">Privacy policy page missing<small>legal.privacy-missing · Legal</small></div><span class="chip warn">Should fix</span></div>
-      <div class="finding"><div class="f-name">Missing CSP header<small>headers.csp · Headers</small></div><span class="chip soft">Medium</span></div>
-      <div class="finding"><div class="f-name">TLS 1.0 still enabled<small>tls.versions · TLS</small></div><span class="chip soft">Low</span></div>
-      <div class="finding"><div class="f-name">Admin key leaked in page source<small>keys.leaked · Keys</small></div><span class="chip crit">Fix now</span></div>
-      <div class="finding"><div class="f-name">Cookies missing Secure flag<small>cookies.secure · Cookies</small></div><span class="chip soft">Medium</span></div>
     </div>
   </div>
 
@@ -261,11 +277,92 @@
     <a href="https://github.com/xorudra/siteguard">github.com/xorudra/siteguard</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></footer>
 
 <script>
-document.getElementById('scanForm').addEventListener('submit', function () {
+var GRADE_COLORS = { A: '#22a06b', B: '#65a30d', C: '#ca8a04', D: '#ea580c', F: '#dc2626' };
+var SEV_CLASS = { high: 'crit', medium: 'warn', low: 'soft', info: 'soft' };
+
+function rcShow(state, data) {
+  var empty = document.getElementById('rcEmpty');
+  var body = document.getElementById('rcBody');
+  var err = document.getElementById('rcError');
+  var chip = document.getElementById('rcChip');
+  empty.hidden = state !== 'empty';
+  body.hidden = state !== 'done';
+  err.hidden = state !== 'error';
+  chip.hidden = state !== 'done';
+  if (state === 'scanning') {
+    empty.hidden = false;
+    empty.textContent = 'Scanning ' + data + ' — probing 39 checks…';
+  }
+  if (state === 'error') err.textContent = data;
+  if (state !== 'done') return;
+  document.getElementById('rcUrl').textContent = data.url;
+  var score = document.getElementById('rcScore');
+  score.textContent = data.score;
+  score.style.color = GRADE_COLORS[data.grade] || '#0b0b0c';
+  document.getElementById('rcGrade').textContent = 'Grade ' + data.grade;
+  var partial = document.getElementById('rcPartial');
+  if (data.complete) { partial.hidden = true; }
+  else {
+    partial.hidden = false;
+    partial.textContent = 'partial scan, ' + data.skipped + ' checks skipped';
+  }
+  document.getElementById('rcPassed').textContent = data.passed;
+  document.getElementById('rcFailed').textContent = data.failed;
+  document.getElementById('rcSkipped').textContent = data.skipped;
+  document.getElementById('rcTotal').textContent = data.total;
+  document.getElementById('rcReportUrl').value = data.url;
+  var box = document.getElementById('rcFindings');
+  box.textContent = '';
+  if (!data.findings.length) {
+    var ok = document.createElement('div');
+    ok.className = 'finding first';
+    ok.innerHTML = '<div class="f-name">No problems found in the surface checks.</div>';
+    box.appendChild(ok);
+  }
+  data.findings.forEach(function (f, i) {
+    var row = document.createElement('div');
+    row.className = 'finding' + (i === 0 ? ' first' : '');
+    var name = document.createElement('div');
+    name.className = 'f-name';
+    name.textContent = f.title;
+    var small = document.createElement('small');
+    small.textContent = f.key;
+    name.appendChild(small);
+    var chipEl = document.createElement('span');
+    chipEl.className = 'chip ' + (SEV_CLASS[f.severity] || 'soft');
+    chipEl.textContent = f.label;
+    row.appendChild(name);
+    row.appendChild(chipEl);
+    box.appendChild(row);
+  });
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+document.getElementById('scanForm').addEventListener('submit', function (e) {
+  e.preventDefault();
   var b = document.getElementById('scanBtn');
+  var url = document.getElementById('urlInput').value.trim();
+  if (!url) { rcShow('error', 'Please enter a website address.'); return; }
   b.disabled = true;
   b.textContent = 'Scanning…';
   document.getElementById('spin').style.display = 'block';
+  rcShow('scanning', url);
+  var body = new URLSearchParams();
+  body.set('url', url);
+  fetch('/api/scan', { method: 'POST', body: body })
+    .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+    .then(function (res) {
+      if (!res.ok) throw new Error(res.j.error || 'Scan failed.');
+      rcShow('done', res.j);
+    })
+    .catch(function (err) {
+      rcShow('error', err.message || 'Could not scan that site — check the address and try again.');
+    })
+    .finally(function () {
+      b.disabled = false;
+      b.textContent = 'Scan free';
+      document.getElementById('spin').style.display = 'none';
+    });
 });
 document.getElementById('vaptForm').addEventListener('submit', function () {
   var b = this.querySelector('button');
