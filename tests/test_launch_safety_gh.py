@@ -129,15 +129,15 @@ class TestAppH41(unittest.TestCase):
     def test_index_has_canonical_and_og(self):
         body = self.client.get("/").get_data(as_text=True)
         self.assertIn('rel="canonical"', body)
-        self.assertIn("https://siteguard-vf9c.onrender.com/", body)
+        self.assertIn("https://siteguardapp.duckdns.org/", body)
         self.assertIn('property="og:title"', body)
         self.assertIn('property="og:description"', body)
 
     def test_legal_pages_have_canonical(self):
         body = self.client.get("/privacy").get_data(as_text=True)
-        self.assertIn("https://siteguard-vf9c.onrender.com/privacy", body)
+        self.assertIn("https://siteguardapp.duckdns.org/privacy", body)
         body = self.client.get("/terms").get_data(as_text=True)
-        self.assertIn("https://siteguard-vf9c.onrender.com/terms", body)
+        self.assertIn("https://siteguardapp.duckdns.org/terms", body)
 
 
 if __name__ == "__main__":

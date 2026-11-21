@@ -840,6 +840,25 @@ def favicon():
         "Cache-Control": "public, max-age=604800"})
 
 
+# ZeroSweep brand mark for the free-check pages (funnel, owner decision
+# 2026-11-21: the free check wears ZeroSweep's look, "powered by SiteGuard").
+_LOGO_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "static", "zerosweep-logo.png")
+try:
+    with open(_LOGO_PATH, "rb") as _logo_f:
+        _LOGO_PNG = _logo_f.read()
+except OSError:
+    _LOGO_PNG = None
+
+
+@app.route("/zerosweep-logo.png", methods=["GET"])
+def zerosweep_logo():
+    if _LOGO_PNG is None:
+        return Response("not found", status=404)
+    return Response(_LOGO_PNG, mimetype="image/png", headers={
+        "Cache-Control": "public, max-age=604800"})
+
+
 @app.route("/", methods=["GET"])
 def index():
     return render_template("index.html")
