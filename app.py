@@ -975,6 +975,7 @@ def api_scan():
         "grade": report["grade"],
         "complete": report["complete"],
         "skipped": report["skipped"],
+        "na": report.get("na", 0),
         "total": len(checks),
         "passed": sum(1 for c in checks if c["status"] == "passed"),
         "failed": sum(1 for c in checks if c["status"] == "failed"),

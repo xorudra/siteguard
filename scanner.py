@@ -16,7 +16,7 @@ import ssl
 import threading
 import time
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import requests
 
@@ -460,6 +460,52 @@ def _get(url, headers=None):
     return _safe_get(url, headers=headers)
 
 
+_MULTI_SUFFIX = {
+    "co.uk", "org.uk", "com.au", "co.jp", "com.br", "co.za", "com.sg",
+    "co.nz", "co.kr", "com.mx", "com.tr", "co.in", "com.in", "net.in",
+    "org.in", "firm.in", "ind.in", "gen.in",
+}
+
+
+def _mail_domain(host):
+    """The domain that carries the site's email records: strip a www
+    label, then take the registrable part (last two labels, or three
+    under a known multi-part suffix like co.in)."""
+    labels = [p for p in host.split(".") if p]
+    if labels and labels[0] == "www":
+        labels = labels[1:]
+    if len(labels) <= 2:
+        return ".".join(labels)
+    if ".".join(labels[-2:]) in _MULTI_SUFFIX:
+        return ".".join(labels[-3:])
+    return ".".join(labels[-2:])
+
+
+def _dns_txt(name):
+    """TXT records for `name` via DNS-over-HTTPS (Cloudflare), fetched
+    through the same pinned machinery as every other request — no new
+    dependency, no raw DNS socket. Returns the record strings, [] for
+    a real 'no such record' answer, or None when the query itself
+    failed (callers record 'skipped', never a fake fail)."""
+    try:
+        r = _get("https://cloudflare-dns.com/dns-query?name="
+                 + quote(name) + "&type=TXT",
+                 headers={"Accept": "application/dns-json"})
+        if r.status_code != 200:
+            return None
+        data = json.loads(r.text)
+        if "Status" not in data:
+            return None
+        out = []
+        for ans in data.get("Answer") or []:
+            if ans.get("type") == 16:
+                out.append(str(ans.get("data", ""))
+                           .replace('" "', "").strip('"'))
+        return out
+    except Exception:
+        return None
+
+
 def _jwt_role(token):
     """Read the 'role' claim out of a JWT payload (no verification — the
     payload is public to anyone who can see the token, which is the point)."""
@@ -483,7 +529,10 @@ def scan(raw_url):
     checks = []
 
     def _record(name, status):
-        # status: "passed", "failed", "skipped" or "info"
+        # status: "passed", "failed", "skipped", "info" or "na"
+        # ("na" = the check's precondition is absent on this site —
+        # e.g. no Supabase, so the RLS probe has nothing to test. It
+        # is NOT a failure to run, so it never makes a scan "partial".)
         checks.append({"name": name, "status": status})
 
     # 1. Does HTTPS work at all?
@@ -887,7 +936,7 @@ def scan(raw_url):
             else:
                 _record("HSTS covers all subdomains", "passed")
         else:
-            _record("HSTS covers all subdomains", "skipped")
+            _record("HSTS covers all subdomains", "na")
     except Exception:
         _record("HSTS covers all subdomains", "skipped")
 
@@ -1020,7 +1069,8 @@ def scan(raw_url):
     # 28. Mac junk file exposed (.DS_Store)
     try:
         _r = _get(f"https://{host}/.DS_Store")
-        if _r.status_code == 200 and len(_r.text) > 100:
+        if (_r.status_code == 200 and len(_r.content) > 100
+                and b"Bud1" in _r.content[:64]):
             _record("Mac junk file exposed (.DS_Store)", "failed")
             findings.append(_finding(
                 "low", "ds-store",
@@ -1154,7 +1204,7 @@ def scan(raw_url):
         except Exception:
             _record("Database not readable by the public (RLS)", "skipped")
     else:
-        _record("Database not readable by the public (RLS)", "skipped")
+        _record("Database not readable by the public (RLS)", "na")
 
     # 31. Images missing alt text — the accessibility gap behind ADA
     # lawsuits against small sites.
@@ -1385,7 +1435,7 @@ def scan(raw_url):
 
     _legal_all = _visible_text(_privacy_text + "\n" + _terms_text)
     if not _legal_all.strip():
-        _record("Legal pages customised and complete", "skipped")
+        _record("Legal pages customised and complete", "na")
     else:
         _ph = (re.search(r"\[(?:company|insert|your|name|date|address|"
                          r"email|website)[^\]]*\]", _legal_all, re.I)
@@ -1441,7 +1491,7 @@ def scan(raw_url):
     # (hosting, payments, analytics, AI providers). Silence here is
     # what regulators ask about first.
     if not _privacy_text:
-        _record("Privacy policy names who receives data", "skipped")
+        _record("Privacy policy names who receives data", "na")
     else:
         _pl = _privacy_text.lower()
         if any(w in _pl for w in ("third part", "service provider",
@@ -1543,7 +1593,115 @@ def scan(raw_url):
         except Exception:
             _record("Cloud storage buckets not public", "skipped")
     else:
-        _record("Cloud storage buckets not public", "skipped")
+        _record("Cloud storage buckets not public", "na")
+
+    # --- Email spoofing + page integrity (2026-11-21 strengthening):
+    # checks 40-42. All passive: two DNS lookups and the page we
+    # already fetched. A domain anyone can send email "from" is the
+    # most common small-business scam there is.
+    _dom = _mail_domain(host)
+
+    # 40. SPF record — who is allowed to send email as this domain
+    try:
+        _txts = _dns_txt(_dom)
+        if _txts is None:
+            _record("Email sender rules set (SPF)", "skipped")
+        else:
+            _spf = [t for t in _txts if t.lower().startswith("v=spf1")]
+            if not _spf:
+                _record("Email sender rules set (SPF)", "failed")
+                findings.append(_finding(
+                    "low", "spf-missing",
+                    "Anyone can fake email from your domain (no SPF)",
+                    "Your domain has no SPF record, so scammers can send "
+                    "email that looks like it comes from you — fake "
+                    "invoices and password resets in your name.",
+                    "Add a DNS TXT record starting 'v=spf1' listing your "
+                    "real email services (Google Workspace, Microsoft 365 "
+                    "or your host), ending with '-all'. Your email "
+                    "provider's help page has the exact line."))
+            elif _spf[0].lower().rstrip().endswith("+all"):
+                _record("Email sender rules set (SPF)", "failed")
+                findings.append(_finding(
+                    "medium", "spf-open",
+                    "Your email sender rules allow anyone (SPF +all)",
+                    "Your SPF record ends in '+all', which tells every "
+                    "mail server on earth that anyone may send email as "
+                    "your domain. It is the same as having no protection.",
+                    "Change the ending of your SPF record from '+all' "
+                    "to '-all' in your DNS settings."))
+            else:
+                _record("Email sender rules set (SPF)", "passed")
+    except Exception:
+        _record("Email sender rules set (SPF)", "skipped")
+
+    # 41. DMARC record — what happens to fake email
+    try:
+        _txts = _dns_txt("_dmarc." + _dom)
+        if _txts is None:
+            _record("Fake-email policy set (DMARC)", "skipped")
+        else:
+            _dm = [t for t in _txts if t.lower().startswith("v=dmarc1")]
+            _pol = None
+            if _dm:
+                _m = re.search(r"[;\s]p\s*=\s*(none|quarantine|reject)",
+                               _dm[0], re.I)
+                _pol = _m.group(1).lower() if _m else None
+            if _pol in ("quarantine", "reject"):
+                _record("Fake-email policy set (DMARC)", "passed")
+            elif _pol == "none":
+                _record("Fake-email policy set (DMARC)", "failed")
+                findings.append(_finding(
+                    "low", "dmarc-weak",
+                    "Fake email is only watched, not blocked (DMARC)",
+                    "Your DMARC policy is 'p=none': mail servers report "
+                    "fake email from your domain but still deliver it. "
+                    "Your customers see the scam.",
+                    "Once your DMARC reports look clean for a few "
+                    "weeks, raise the policy in DNS to p=quarantine, "
+                    "then p=reject."))
+            else:
+                _record("Fake-email policy set (DMARC)", "failed")
+                findings.append(_finding(
+                    "low", "dmarc-missing",
+                    "No policy against fake email (DMARC missing)",
+                    "Without a DMARC record, mail servers have no "
+                    "instruction to block email that fakes your domain, "
+                    "and you get no reports that it is happening.",
+                    "Add a DNS TXT record at _dmarc." + _dom + " "
+                    "starting 'v=DMARC1; p=none; rua=mailto:you@" + _dom
+                    + "' to start receiving reports, then tighten to "
+                    "p=quarantine or p=reject."))
+    except Exception:
+        _record("Fake-email policy set (DMARC)", "skipped")
+
+    # 42. Mixed content — secure page loading insecure parts
+    if not https_ok:
+        _record("Page parts all load securely", "na")
+    elif base is None:
+        _record("Page parts all load securely", "skipped")
+    else:
+        try:
+            _mixed = re.findall(
+                r"<(?:script|img|link|iframe|source|video|audio)"
+                r"[^>]+(?:src|href)\s*=\s*[\"']http://",
+                base.text, re.I)
+            if _mixed:
+                _record("Page parts all load securely", "failed")
+                findings.append(_finding(
+                    "low", "mixed-content",
+                    f"Secure page loads {len(_mixed)} insecure part(s)",
+                    "Your page is served over HTTPS but pulls in "
+                    "scripts, images or files over plain HTTP. Browsers "
+                    "block or warn about those parts, and attackers can "
+                    "swap them in transit.",
+                    "Change every http:// link in your page's code to "
+                    "https:// (or a relative link), including images "
+                    "and scripts."))
+            else:
+                _record("Page parts all load securely", "passed")
+        except Exception:
+            _record("Page parts all load securely", "skipped")
 
     score = max(0, 100 - sum(DEDUCT[f["severity"]] for f in findings))
     grade = ("A" if score >= 90 else "B" if score >= 80 else "C"
@@ -1564,6 +1722,7 @@ def scan(raw_url):
         # tell "tested and passed" from "not tested" — a scan whose
         # checks were skipped must not present as a clean pass.
         "skipped": skipped,
+        "na": sum(1 for c in checks if c["status"] == "na"),
         "complete": skipped == 0,
     }
 

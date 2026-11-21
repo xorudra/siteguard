@@ -119,6 +119,9 @@ CHECK_MAP = {
     "Path traversal probe": "A01",
     "Template injection probe (SSTI)": "A03",
     "Host header injection": "A05",
+    "Email sender rules set (SPF)": "A05",
+    "Fake-email policy set (DMARC)": "A05",
+    "Page parts all load securely": "A02",
 }
 
 
@@ -133,7 +136,8 @@ def owasp_coverage(report):
     rows = []
     for cat in CATEGORIES:
         checks = by_cat.get(cat["id"], [])
-        if checks and any(c["status"] != "skipped" for c in checks):
+        if checks and any(c["status"] not in ("skipped", "na")
+                          for c in checks):
             status = "covered"
         elif checks:
             # Present but never ran (2026-10-16 run-2 fix): "covered"

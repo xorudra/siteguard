@@ -67,7 +67,7 @@ def status_of(report, name):
         report = run_scan(routes)
     # 31. Mac junk file exposed (.DS_Store)
     def test_ds_store_failed(self):
-        routes = {"/.DS_Store": FakeResponse(200, text="x" * 120)}
+        routes = {"/.DS_Store": FakeResponse(200, text="Bud1" + "x" * 120)}
         report = run_scan(routes)
         self.assertEqual(status_of(report, "Mac junk file exposed (.DS_Store)"), "failed")
 

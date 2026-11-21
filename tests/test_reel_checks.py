@@ -110,7 +110,7 @@ class TestSupabaseKeys(unittest.TestCase):
             "passed")
         self.assertEqual(
             status_of(report, "Database not readable by the public (RLS)"),
-            "skipped")
+            "na")
 
 
 class TestRlsProbe(unittest.TestCase):

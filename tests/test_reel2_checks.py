@@ -110,10 +110,10 @@ class TestLegalExistence(unittest.TestCase):
         self.assertIsNotNone(finding(report, "terms-missing"))
         self.assertEqual(
             status_of(report, "Legal pages customised and complete"),
-            "skipped")
+            "na")
         self.assertEqual(
             status_of(report, "Privacy policy names who receives data"),
-            "skipped")
+            "na")
 
     def test_good_legal_pages_pass(self):
         report = run_scan("<p>hello</p>",
@@ -228,7 +228,7 @@ class TestStorageBuckets(unittest.TestCase):
         report = run_scan("<p>hello</p>")
         self.assertEqual(
             status_of(report, "Cloud storage buckets not public"),
-            "skipped")
+            "na")
 
 
 if __name__ == "__main__":

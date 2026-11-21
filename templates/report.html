@@ -64,7 +64,7 @@
   details.checks li { display: flex; align-items: center; gap: 12px; padding: 8px 0; font-size: 13.5px; color: #55524a; border-top: 1px solid rgba(11,11,12,0.08); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .dot { width: 23px; height: 23px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; font-family: Inter, system-ui, sans-serif; }
   .st-passed .dot { background: #2f9e68; } .st-failed .dot { background: #e80; }
-  .st-skipped .dot { background: #5b6572; } .st-info .dot { background: #68c; }
+  .st-skipped .dot, .st-na .dot { background: #5b6572; } .st-info .dot { background: #68c; }
   .st-failed { color: #0b0b0c; font-weight: 600; }
   /* ---- owasp top 10 ---- */
   .owasp { display: flex; flex-direction: column; gap: 10px; }
@@ -177,7 +177,7 @@
         <summary><span>See all {{ r.checks|length }} checks</span><span class="chev">&#9662;</span></summary>
         <ul>
         {% for c in r.checks %}
-          <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}{% if c.status == 'skipped' %} (skipped){% endif %}</li>
+          <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}{% if c.status == 'skipped' %} (skipped){% elif c.status == 'na' %} (doesn't apply){% endif %}</li>
         {% endfor %}
         </ul>
       </details>
@@ -196,7 +196,7 @@
             {% if o.checks %}
             <ul>
               {% for c in o.checks %}
-              <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}{% if c.status == 'skipped' %} (skipped){% endif %}</li>
+              <li class="st-{{ c.status }}"><span class="dot">{% if c.status == 'passed' %}&#10003;{% elif c.status == 'failed' %}!{% elif c.status == 'info' %}i{% else %}&ndash;{% endif %}</span>{{ c.name }}{% if c.status == 'skipped' %} (skipped){% elif c.status == 'na' %} (doesn't apply){% endif %}</li>
               {% endfor %}
             </ul>
             {% endif %}

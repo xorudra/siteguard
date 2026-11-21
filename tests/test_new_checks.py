@@ -149,9 +149,9 @@ def has_finding(result, key):
 
 
 class NewChecksTest(unittest.TestCase):
-    def test_total_check_count_is_39(self):
+    def test_total_check_count_is_42(self):
         result = run_scan()
-        self.assertEqual(len(result["checks"]), 39)
+        self.assertEqual(len(result["checks"]), 42)
 
     def test_finding_keys_unique(self):
         # worst case: everything fails at once
@@ -296,7 +296,7 @@ class NewChecksTest(unittest.TestCase):
         self.assertEqual(check_status(r, CHECK_NAMES[22]), "passed")
         h = dict(GOOD_HEADERS); del h["strict-transport-security"]
         r = run_scan(base_headers=h)
-        self.assertEqual(check_status(r, CHECK_NAMES[22]), "skipped")
+        self.assertEqual(check_status(r, CHECK_NAMES[22]), "na")
 
     # 23. robots.txt
     def test_23_robots(self):
@@ -343,7 +343,7 @@ class NewChecksTest(unittest.TestCase):
         from owasp import CHECK_MAP, owasp_coverage, CATEGORIES
         r = run_scan()
         names = [c["name"] for c in r["checks"]]
-        self.assertEqual(len(names), 39)
+        self.assertEqual(len(names), 42)
         for n in names:
             self.assertIn(n, CHECK_MAP, f"check not mapped: {n}")
         rows = owasp_coverage(r)
