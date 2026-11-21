@@ -44,12 +44,15 @@ class TestAppGH39(unittest.TestCase):
 
     # --- H39: input preserved on form errors ---
     def test_scan_error_preserves_long_url(self):
+        # Retired with the /scan form (2026-11-22): the route answers
+        # the 410 deep-scan pitch; long-input handling lives on in
+        # /api/scan's JSON errors.
         long_url = "x" * 300
         r = self.client.post("/scan", data={"url": long_url})
-        self.assertEqual(r.status_code, 200)
-        body = r.get_data(as_text=True)
-        self.assertIn("too long", body)
-        self.assertIn(f'value="{long_url}"', body)
+        self.assertEqual(r.status_code, 410)
+        r = self.client.post("/api/scan", data={"url": long_url})
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("too long", r.get_data(as_text=True))
 
     def test_vapt_consent_error_preserves_url(self):
         r = self.client.post("/vapt", data={"url": "example.com"})

@@ -82,9 +82,11 @@ class TestPartnerScanApi(unittest.TestCase):
         appmod.scan = self._real_scan
 
     def test_partner_origin_may_post_scan(self):
+        # The origin guard still lets the partner through; /scan itself
+        # is retired (410) — the partner flow is /api/scan now.
         r = self.client.post("/scan", data={"url": "example.com"},
                              headers={"Origin": PARTNER})
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 410)
 
     def test_partner_origin_still_blocked_elsewhere(self):
         r = self.client.post("/vapt", data={"url": "example.com"},

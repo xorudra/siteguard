@@ -207,7 +207,7 @@ class TestAppWave1(unittest.TestCase):
             r = self.client.post(
                 "/scan", data={},
                 headers={"X-Forwarded-For": f"9.9.9.{i}, 5.5.5.5"})
-            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.status_code, 410)  # /scan retired 2026-11-22
         r = self.client.post(
             "/scan", data={},
             headers={"X-Forwarded-For": "9.9.9.99, 5.5.5.5"})
@@ -216,7 +216,7 @@ class TestAppWave1(unittest.TestCase):
     def test_no_xff_falls_back_to_remote_addr(self):
         for _ in range(sg_app.RATE_LIMIT):
             r = self.client.post("/scan", data={})
-            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.status_code, 410)  # /scan retired 2026-11-22
         r = self.client.post("/scan", data={})
         self.assertEqual(r.status_code, 429)
 
@@ -253,9 +253,9 @@ class TestAppWave1(unittest.TestCase):
     def test_same_host_and_absent_origin_pass(self):
         r = self.client.post("/scan", data={},
                              headers={"Origin": "http://localhost"})
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 410)  # guard passed; /scan retired
         r = self.client.post("/scan", data={})  # curl-style: no headers
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 410)
         r = self.client.get("/", headers={"Origin": "https://evil.example"})
         self.assertEqual(r.status_code, 200)  # guard applies to POST only
 

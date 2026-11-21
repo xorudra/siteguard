@@ -166,14 +166,16 @@ class TestReportHonesty(unittest.TestCase):
         self.assertFalse(merged["complete"])
 
     def test_report_page_discloses_partial_scan(self):
+        # The report page is retired (2026-11-22); partial honesty now
+        # lives in the /api/scan payload the card renders from.
         with patch.object(sg_app, "scan",
                           return_value=_partial_report()):
-            r = self.client.post("/scan", data={"url": "victim.test"})
-        html = r.get_data(as_text=True)
-        self.assertIn("partial scan", html)
-        self.assertIn("Skipped", html)
-        self.assertNotIn("passed every check", html)
-        self.assertIn("(skipped)", html)
+            r = self.client.post("/api/scan", data={"url": "victim.test"})
+        payload = r.get_json()
+        self.assertFalse(payload["complete"])
+        self.assertEqual(payload["skipped"], 2)
+        r = self.client.post("/scan", data={"url": "victim.test"})
+        self.assertEqual(r.status_code, 410)
 
     def test_poc_page_marks_partial(self):
         # PoC left the free tier 2026-11-21 (owner order): the route
@@ -186,13 +188,15 @@ class TestReportHonesty(unittest.TestCase):
 
     # --- run-3 confirmed residual: the grade element itself ---
     def test_grade_elements_carry_the_partial_qualifier(self):
+        # Report-page grade qualifiers retired with the page
+        # (2026-11-22): /scan answers the 410 gate, and partial scans
+        # stay qualified in the /api/scan payload (complete/skipped).
         with patch.object(sg_app, "scan",
                           return_value=_partial_report()):
             r = self.client.post("/scan", data={"url": "victim.test"})
-        html = r.get_data(as_text=True)
-        # The ring's accessible name and visible caption are qualified.
-        self.assertIn("partial scan, 2 checks skipped", html)
-        self.assertIn('<div class="gp">partial</div>', html)
+            self.assertEqual(r.status_code, 410)
+            r = self.client.post("/api/scan", data={"url": "victim.test"})
+            self.assertFalse(r.get_json()["complete"])
         # The PoC route itself is retired (410) since 2026-11-21.
         payload = sg_app._sign_report(_partial_report())
         r = self.client.post("/poc", data={"payload": payload,

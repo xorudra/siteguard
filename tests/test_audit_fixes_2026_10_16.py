@@ -231,7 +231,9 @@ class TestAppAuditFixes(unittest.TestCase):
 
     # --- request-body cap ---
     def test_oversize_post_gets_clean_413(self):
-        r = self.client.post("/scan", data={"url": "x" * 70_000})
+        # /api/scan: the form-parsing endpoint (/scan itself is retired
+        # and never parses a body now).
+        r = self.client.post("/api/scan", data={"url": "x" * 70_000})
         self.assertEqual(r.status_code, 413)
         self.assertIn("too big", r.get_data(as_text=True))
 
@@ -258,7 +260,7 @@ class TestAppAuditFixes(unittest.TestCase):
                 r = self.client.post(
                     "/scan", data={},
                     headers={"X-Forwarded-For": f"198.51.100.{i}"})
-                self.assertEqual(r.status_code, 200)
+                self.assertEqual(r.status_code, 410)  # /scan retired
             r = self.client.post(
                 "/scan", data={},
                 headers={"X-Forwarded-For": "198.51.100.99"})

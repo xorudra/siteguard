@@ -888,36 +888,22 @@ def terms():
 
 @app.route("/scan", methods=["POST"])
 def do_scan():
+    """The full report page left the free tier (owner order 2026-11-22):
+    Free Scan provides RESULTS on the home page card (score, grade,
+    findings) — reports are part of the paid deep scan. The rate limit
+    still applies first."""
     limited = _rate_or_429()
     if limited is not None:
         return limited
-
-    url = (request.form.get("url") or "").strip()
-    if not url:
-        return render_template("index.html",
-                               error="Please enter a website address.")
-    if len(url) > 253:
-        return render_template("index.html", url=url,
-                               error="That address looks too long to be real.")
-
-    slot = _scan_gate.acquire()
-    if slot is None:
-        return _busy_response(url)
-    try:
-        report = scan(url)
-    except UnsafeTarget as e:
-        return render_template("index.html", url=url, error=str(e))
-    except Exception:
-        return render_template(
-            "index.html", url=url,
-            error="Could not scan that site — check the address and try again.")
-    finally:
-        _scan_gate.release(slot)
-    return render_template("report.html", r=report,
-                           sev_color=SEV_COLOR, sev_label=SEV_LABEL,
-                           grade_color=GRADE_COLOR[report["grade"]],
-                           poc_payload=_sign_report(report),
-                           owasp=owasp_coverage(report))
+    return ("""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>Reports — deep scan only</title></head>
+<body style="font-family:system-ui,sans-serif;background:#0b0b0c;color:#f2f0ea;padding:40px 20px;max-width:560px;margin:0 auto">
+<h1 style="font-family:Georgia,serif;font-weight:500">Reports are part of the deep scan.</h1>
+<p style="color:#b9b5aa;line-height:1.6">Free Scan gives you the result — score, grade and
+findings — right on the home page. The full report, with coverage detail and
+proof of concept, is what the paid ZeroSweep deep scan produces.</p>
+<p><a style="color:#c6f432" href="https://zerosweep.dpdns.org/">Back to Free Scan</a></p>
+</body></html>""", 410)
 
 
 def _scan_json(payload, status=200):

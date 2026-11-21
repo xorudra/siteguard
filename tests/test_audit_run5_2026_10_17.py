@@ -139,23 +139,23 @@ class TestScanGate(unittest.TestCase):
         gate.release(token2)
 
     def test_scan_route_is_busy_when_all_slots_held(self):
+        # The gate now guards /api/scan (the /scan page is retired).
         token = sg_app._scan_gate.acquire()
         self.assertIsNotNone(token)
         try:
-            r = self.client.post("/scan", data={"url": "http://x.test/"})
+            r = self.client.post("/api/scan", data={"url": "http://x.test/"})
         finally:
             sg_app._scan_gate.release(token)
         self.assertEqual(r.status_code, 429)
         self.assertIn(b"busy", r.data)
-        self.assertEqual(r.headers.get("Retry-After"), "30")
 
     def test_scan_route_not_busy_when_slot_free(self):
         def _boom(host, port, **kw):
             raise socket.gaierror("no dns in tests")
         with patch.object(scanner.socket, "getaddrinfo", _boom):
-            r = self.client.post("/scan", data={"url": "http://x.test/"})
-        self.assertEqual(r.status_code, 200)
-        self.assertNotIn(b"scanner is busy", r.data)
+            r = self.client.post("/api/scan", data={"url": "http://x.test/"})
+        self.assertEqual(r.status_code, 400)  # unresolvable = unsafe target
+        self.assertNotIn(b"busy with another scan", r.data)
 
 
 if __name__ == "__main__":
